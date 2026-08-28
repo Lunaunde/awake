@@ -1,0 +1,282 @@
+# Awake 课表 Android 应用实施计划
+
+## Context
+
+当前 `D:\Code\awake` 是一个极简的单模块 Android Compose 工程：`MainActivity.kt` 只有计数器示例，网络、登录、JSON 解析、ViewModel、导航和课表 UI 尚未实现；已有的 `Course.java` / `CourseDBHelper.java` 只是手写 SQLite CRUD 原型。
+
+`登录方式与课表获取_流程总结.md` 已调研出华南理工（SCUT）CAS 与正方教务的登录、票据跳转和课表接口，但文档引用的 `scut_qr` 脚本并不在仓库中。因此本项目需要从“可运行脚手架 + 数据库实验代码”逐步建设成可离线查看、可同步、可编辑并带提醒的课表应用。
+
+已确认的产品方向：
+
+- 首版使用学校**官方 CAS 页面**完成登录，不在 App 内自行实现密码 3DES；由官方页面处理密码、验证码和二次认证。
+- 单机本地优先，不建设后端，不上传密码、Cookie 或课表。
+- 首版完整支持 SCUT；数据模型和适配器抽象预留其他学校。
+- 同一账号支持保存和切换多个学年/学期课表，并支持手动编辑、课前通知、桌面小组件和日历导出。
+- 首版不做多账号切换；“多课表”按多个学期课表实现，不把账号维度误扩展成账号管理功能。
+
+## 推荐架构
+
+采用单 Activity + Compose + 分层架构：
+
+```text
+Compose UI
+  -> ViewModel + StateFlow
+  -> UseCase / Domain
+  -> Repository
+      -> Room 本地数据库
+      -> SCUT WebView 认证 + OkHttp 课表客户端
+```
+
+建议包结构：
+
+```text
+com.example.awake
+├── data/local       Room Entity、DAO、Migration
+├── data/remote      CAS WebView 协调、Cookie、SCUT API、DTO
+├── data/mapper      SCUT JSON -> Domain
+├── data/repository
+├── domain/model     Profile、School、Timetable、Term、Course、Schedule
+├── domain/parser    周次、节次解析
+├── domain/usecase   登录、导入、刷新、提醒、导出
+├── ui/navigation
+├── ui/auth
+├── ui/timetable
+├── ui/importterm
+├── ui/settings
+├── ui/notifications
+└── ui/components
+```
+
+首版不引入 Hilt；用 `AwakeApplication` + 手动 `AppContainer` 组装数据库、客户端和 Repository，降低脚手架改造成本。将来确有多学校适配器、后台任务或大型模块时再评估依赖注入框架。
+
+## 数据和业务设计
+
+### 1. 规范化领域模型
+
+不能继续把 `weekConfig` 原字符串直接用于 SQL `LIKE`。定义：
+
+- `Profile`：当前本地配置的 SCUT 学生摘要（仅保存脱敏学号/显示名和最近登录时间）；首版只有一个活动账号，不提供多账号切换。
+- `School`：学校代码、名称、适配器类型；首版实际实现 `SCUT`。
+- `Timetable`：一个可切换的学年/学期课表，包含 `profileId`、学校、学年起始年 `xnm`、学期码 `xqm`、标签、学期开始日期、总周数、最后同步时间。`(profileId, xnm, xqm)` 唯一。
+- `Course`：`timetableId`、来源（`SCUT_KB`/`SCUT_SJK`/`MANUAL`）、远程业务键、名称、教师、教室、星期、起止节次、学分、总学时、课程性质、颜色、原始周次文本。
+- `CourseWeek`：`courseId + weekNumber`，每行代表一门课在某一周出现。
+- `PeriodConfig`：每节课的开始/结束时间，用于周视图、提醒、日历导出和小组件。
+
+数据库约束至少保证：
+
+- 每门课程只能属于一个 `Timetable`，切换学期只读取当前课表。
+- 远程课按 `(timetableId, source, remoteKey)` 去重；远程键不稳定时使用规范字段哈希。
+- `CourseWeek(courseId, weekNumber)` 唯一。
+- 手动课与同步课来源分离，自动同步不能无提示覆盖手动课。
+
+### 2. 替换现有 SQLite 原型
+
+以 Room 作为正式访问层，保留数据库文件名 `course.db`。为已有 v2 数据写显式迁移：
+
+- 新建 `profiles`、`timetables`、规范化 `courses`、`course_weeks` 和配置表。
+- 将旧 `courses` 的记录导入一个 `MIGRATED_LEGACY` Profile/历史手工 Timetable，展开可识别的周次。
+- `1-16`、逗号列表、`all` 等统一经过解析器；不确定学期的数据不得静默丢弃。
+- 使用 Room `Migration` 和 `MigrationTestHelper`，禁止沿用 `CourseDBHelper.onUpgrade()` 的 `DROP TABLE`。
+- 在迁移稳定前保留 `Course.java` 作为兼容 DTO；业务代码迁移到 Kotlin Entity/Domain 后，将 `CourseDBHelper.java` 标记废弃并停止主流程调用。
+
+若 Room 不能直接接管没有 Room 元数据的旧 v2 数据，则先执行一次受控的 legacy importer，再切换到新 schema；不能用 destructive migration 掩盖兼容问题。
+
+### 3. 周次和节次解析
+
+`WeekExpressionParser` 输出 `Set<Int>`，至少覆盖：单周、`1-16`、逗号列表、中文“第 X-Y 周”、单周/双周、`all`、空值和未知格式。未知格式必须成为可见导入警告，不能默认解释为全周。
+
+`PeriodExpressionParser` 解析 `jcs` 的单节、连续节次及常见分隔符，校验星期 1–7、节次范围和空值。解析器与 SCUT 网络层解耦，使其他学校能复用领域模型。
+
+## 登录、会话和同步流程
+
+### 1. 官方 CAS WebView（首版方案）
+
+`CasWebViewCoordinator` 打开固定、编码正确的 SCUT service URL，让官方页面处理用户名、密码、验证码和 MFA：
+
+1. 进入 `https://sso.scut.edu.cn/cas/login?service=...`。
+2. WebView 只允许 `sso.scut.edu.cn` 和 `xsjw2018.jw.scut.edu.cn`，阻断其他域名跳转。
+3. 监听导航结果，确认最终进入 `/jwglxt`，再探测 `index_initMenu` 或等价登录状态。
+4. 从 `CookieManager` 按域名和路径读取会话 Cookie，验证 `/jwglxt` 的 `JSESSIONID` 能交给课表客户端使用；此处先做技术 Spike，不默认假定 WebView 与 OkHttp 的 Cookie 共享安全可靠。
+5. 如果 Cookie 交接失败，优先让同一受控 WebView 完成课表请求，或再评估扫码适配器；不要为了“原生体验”偷偷改成保存密码或绕过官方页面。
+
+不在首版实现自有密码表单、3DES、自动验证码识别、MFA 绕过或后台代登录。登录页需要有取消、重新登录、会话失效和官方页面打开失败的明确状态。
+
+### 2. 会话策略
+
+- 默认密码不落盘，CAS ticket、`CASTGC`、`JSESSIONID` 和二维码/跳转 token 只保存在进程内会话对象。
+- 不把 Cookie 手工拼成全局字符串；按域名、路径和过期时间管理 Cookie。
+- 应用进程结束后默认重新登录；若以后确需“记住登录”，使用 Android Keystore 加密且逐配置存储，并单独评估备份策略。
+- 登出必须清理内存 Cookie、WebView Cookie、当前 Profile 会话和敏感 UI 状态；不删除用户明确保留的多个本地课表，另提供“清除全部数据”。
+- 所有错误日志只包含状态和耗时，不包含密码、验证码、Cookie、ticket、完整认证 URL 或 Authorization/Cookie 请求头。
+
+### 3. SCUT 课表导入
+
+`ScutScheduleRepository` 只调用文档中的数据接口，不依赖目前可能返回 500 的课表首页：
+
+```text
+/jwglxt/kbcx/xskbcx_cxXsKb.html
+  ?xnm=<学年起始年>&xqm=<学期码>&xszd=&kblx=1
+```
+
+DTO 同时解析 `xsxx`、`kbList` 和 `sjkList`，映射 `kcmc/xm/cdmc/xqj/xqjmc/jcs/zcd/xf/zxs/kclbmc/khfsmc/jxbmc` 等字段。网络层只返回结构化结果和领域错误，不把 HTTP 异常直接展示给 UI。
+
+导入事务：
+
+1. 检查当前 Profile 会话；需要时要求重新登录。
+2. 对指定学年/学期发起单次请求，禁止重复点击并发和多学期并发抓取。
+3. 完整解析、校验并收集 warning。
+4. 解析成功后，在一个数据库事务中只替换目标 Timetable 的远程课程及周次。
+5. 失败、超时、维护页或部分未知格式时保留旧课表；部分成功只能在明确告知跳过数量后提交。
+6. 记录最后成功同步时间和来源，不保存完整原始响应。
+
+错误分类至少包括：网络不可用、HTTP/维护、会话失效、官方页面需要验证码/MFA、限流、JSON 格式变化、周次/节次无法解析、存储失败，并为每类提供重试或重新登录操作。
+
+## 页面与交互
+
+导航路由：
+
+- `timetable`：主课表，支持多个学期课表选择、当前周选择、刷新、离线标识。
+- `login`：官方 CAS WebView 登录流程。
+- `term-import`：创建/选择学年学期课表并导入。
+- `course-detail`：课程详情、手动编辑和删除。
+- `settings`：当前登录摘要、重新登录、学期起始日、节次时间、提醒、日历导出、隐私和清理数据。
+
+`TimetableViewModel` 以 `StateFlow` 暴露当前 Timetable、当前周、课程、同步状态和错误。切换学期或周次只查询本地数据库，不触发网络；只有显式刷新才访问教务系统。`AuthViewModel` 管理 WebView 登录、取消、会话验证和登出。UI 通过 lifecycle-aware collection 观察状态。
+
+课表页首版要求：
+
+- 顶部课表选择器，能在多个学年/学期课表间切换；另有当前周选择器和刷新按钮。
+- 周一到周日列 + 节次时间轴；课程卡显示名称、教师和教室。
+- 支持跨节次课程、课程冲突可见、点击进入详情、小屏降级为按日课程列表。
+- 课程颜色不能是唯一信息；支持亮色/暗色、系统字体放大、48dp 触控、图标无障碍描述。
+- 有课、空课、加载、失败、离线和部分解析警告六种明确状态。
+- 手动课程与同步课程区分来源；手动编辑不被自动同步无提示覆盖。
+
+## 通知、小组件和日历
+
+这些功能按本计划纳入首版，但建立在“学期开始日期 + 节次时间配置 + 规范化周次”完成之后。
+
+### 课前通知
+
+- `ReminderScheduler` 抽象 Android 调度器；根据当前 Timetable、周次和节次时间生成课程发生时间。
+- 默认提前 10/15 分钟，可按课程关闭或修改。
+- 使用通知渠道；Android 13+ 请求 `POST_NOTIFICATIONS`，未授权时给出设置入口。
+- 默认采用系统允许的可靠非精确调度；只有用户明确开启且系统允许时才使用精确闹钟，不强行申请或绕过权限。
+- 课程/学期/提醒配置变更后重排，开机后由 Receiver 恢复；处理时区、夏令时和跨学期边界。
+- 通知点击进入对应课程详情；调度器使用 fake clock/接口以便单元测试。
+
+### 桌面小组件
+
+使用 Glance App Widget，展示当前选中课表的今日课程/下一节课；无课、未登录、数据过期时显示可操作空状态。小组件只读本地数据库，不在后台唤起教务请求。切换课表后刷新 Widget 使用的 Timetable ID。
+
+### 日历导出
+
+以 ICS 文件导出当前选中的学年/学期课表，通过 Storage Access Framework/系统分享交给用户；不自动写入第三方日历，也不上传课表。导出内容带课程、教师、教室和时间，周期由已解析周次展开。
+
+## 多课表与学校适配边界
+
+首版实现 `SchoolAdapter` 接口和 `SCUTAdapter`：
+
+- Profile 只有一个当前 SCUT 登录配置；每个 `Timetable` 明确归属 Profile、学校和学年/学期。
+- 同一账号可保存多个学年/学期课表，并可在课表选择器中切换；切换时课程、提醒、Widget 和 ICS 导出都使用同一个 Timetable ID。
+- 多学校 UI、适配器注册和通用导入入口预留；除了 SCUT，不在没有登录协议与脱敏课表样例时声称已支持其他学校。
+- 可增加 ICS/CSV 通用导入作为不依赖学校协议的扩展，但不能将其冒充为学校直连。
+- 多账号不属于当前范围；若未来加入，需另行增加 Profile 列表、会话隔离和隐私评估，而不是把它混入本次多课表实现。
+
+## 安全、隐私和合规门禁
+
+- 开工前确认教务接口是否可用 HTTPS。优先全链路 HTTPS；如学校接口确实只能 HTTP，只允许对精确 SCUT 教务域配置域级明文，并在设置/隐私说明中明确风险，绝不全局开启明文或关闭证书校验。
+- Manifest 仅加入实现需要的 `INTERNET`、通知和重启恢复权限；不加入与首版无关的后台权限。
+- WebView 设域名白名单、阻断外部跳转、清理退出状态；不把登录页密码复制到 App 表单或日志。
+- 更新 `backup_rules.xml` / `data_extraction_rules.xml`，排除会话和需要保护的本地数据；对课程数据是否备份给用户明确选择。
+- 登录前显示“仅本人账号、仅本地处理、遵守学校信息化规定”的说明；不提供绕过验证码、MFA、风控、批量账号或高频并发抓取。
+- 手动刷新设置单飞锁和最小操作间隔，扫码（若后续加入）严格遵循文档约 2 秒/次、约 120 秒窗口。
+- 提供删除当前 Profile、删除某个 Timetable、删除全部课表和清除全部本地数据的入口；不接入第三方分析上报敏感数据。
+
+## 分阶段实施顺序
+
+### 阶段 0：协议 Spike 与发布边界
+
+修改前先以用户本人测试账号完成一次官方 CAS WebView 登录，脱敏记录最终跳转和 Cookie 交接；确认 HTTPS/HTTP 可用性、实际 `zcd`/`jcs` 变体、学期开始日期和节次时间。生成不含学号、Cookie、ticket 的 JSON fixture。若 WebView 无法可靠交接 `/jwglxt` 会话，先解决交接方式再进入 UI 开发。
+
+阶段出口：认证方式、网络安全边界、SCUT JSON 样例和旧手工课程保留策略明确。
+
+### 阶段 1：工程骨架与依赖
+
+重点修改：
+
+- `app/build.gradle.kts`：Room/KSP、OkHttp、协程、JSON、WebView/测试依赖，集中并锁定版本。
+- `app/src/main/AndroidManifest.xml`：`INTERNET`、`AwakeApplication`、按需通知/重启 Receiver。
+- 新增 `AwakeApplication.kt`、`AppContainer.kt`、网络安全配置。
+- 重构 `MainActivity.kt`，接入导航壳、主题和全局错误边界。
+- 更新 `ui/theme/Color.kt`、`Theme.kt`、`res/values/strings.xml`。
+
+阶段出口：可启动的空白登录/课表/课表选择/设置路由，网络策略经审查。
+
+### 阶段 2：数据层和领域解析
+
+新增 `data/local/AppDatabase.kt`、Entity/DAO、Room Migration、`LegacyCourseImporter.kt`；新增 `domain/model/*`、`WeekExpressionParser.kt`、`PeriodExpressionParser.kt`。重构或废弃 `db/Course.java`、`db/CourseDBHelper.java`，保留现有手工数据迁移路径。
+
+阶段出口：新安装建库、旧 v2 数据保留、按课表/周次查询正确；解析器单元测试覆盖全部已知周次和节次样例。
+
+### 阶段 3：SCUT 官方登录与网络层
+
+新增 `data/remote/CasWebViewCoordinator.kt`、`SessionCookieStore.kt`、`ScutHttpClient.kt`、`ScutDtos.kt`、`ScutJwClient.kt`、`ScutAdapter.kt`，以及 `data/repository/ScutAuthRepository.kt`。实现 WebView 白名单、登录完成探测、Cookie 路径处理、超时/取消、会话失效和错误映射；不实现原生密码 3DES。
+
+阶段出口：无真实账号时可用 fixture/MockWebServer 测试模拟认证结果与课表请求；真实联调仅在用户本人设备、低频手动操作下进行。
+
+### 阶段 4：课表导入、刷新和离线查看
+
+新增 `LoginUseCase.kt`、`ImportTimetableUseCase.kt`、`RefreshTimetableUseCase.kt`、`ObserveTimetableUseCase.kt`、`ScutScheduleMapper.kt` 及对应 ViewModel。实现创建/选择学期课表、原子替换、失败保留旧数据、部分解析 warning、单飞锁和最后同步时间。
+
+阶段出口：登录后导入多个 SCUT 学年/学期课表，断网仍可查看，切换课表/周次无数据串线。
+
+### 阶段 5：核心 Compose UI 与手动编辑
+
+新增 `AppNavHost.kt`、`Routes.kt`、`AuthScreen.kt`、`TimetableScreen.kt`、`CourseDetailScreen.kt`、`TermImportScreen.kt`、`SettingsScreen.kt`、`CourseCard.kt`、`WeekSelector.kt`、`TimetableSelector.kt` 等；移除 `TestScreen()`。补齐加载、空、错误、离线、会话失效、可恢复重试状态。
+
+阶段出口：核心流程可由普通用户完成：官方登录 → 创建/导入学期课表 → 课表选择器切换 → 周视图查看 → 课程详情/手动编辑 → 重新登录或清除数据。
+
+### 阶段 6：通知、Widget、ICS 导出
+
+新增 `ReminderScheduler.kt`、通知渠道/权限协调、`BootReceiver.kt`、Glance Widget、ICS exporter 和设置页面；先实现本地 fake scheduler 测试，再接入 Android 系统调度。验证通知权限拒绝、重启、时区、切换学期和数据删除后的清理。
+
+阶段出口：提醒、桌面小组件和日历导出均只消费当前选中的本地课表，权限不足时不阻塞主课表功能。
+
+### 阶段 7：适配器注册与发布硬化
+
+新增 `SchoolAdapter` 注册表和学校选择入口；SCUT 作为唯一实际直连适配器，整理未来学校接入契约。更新隐私/数据删除/备份规则，增加 README、构建和测试说明；补齐 Gradle Wrapper 或明确构建环境，避免依赖本机 IDE 状态。
+
+## 验证策略
+
+### 自动化测试
+
+- `src/test`：周次/节次边界、单周/双周/范围、未知格式 warning、SCUT DTO/mapper、多个学期课表隔离、ICS 输出、提醒时间计算。
+- 网络：OkHttp MockWebServer 覆盖 302、登录页/维护页、Cookie 路径、超时、401/403/429/500、空 `kbList` 和字段缺失；禁止测试访问真实账号。
+- 数据库：Room 新建 schema、v2→最新版迁移、旧手工数据保留、原子导入失败回滚、重复同步不重复插入、多个 Timetable 切换。
+- `androidTest`：WebView 白名单和取消、Compose 路由/课表切换/手动编辑/离线状态、通知权限和小组件基础状态。
+- 设备矩阵：API 24、Android 13+ 通知权限、当前目标 SDK、窄屏/横屏、暗色模式、字体放大、旋转和进程重建。
+
+### 手工验收
+
+1. 使用本人账号在官方 CAS 页面完成登录，不记录凭证。
+2. 选择不同 `xnm/xqm` 创建并导入多个学期课表，确认理论课和实践课均出现。
+3. 逐周检查 `1-16`、列表、单周/双周课程显示。
+4. 模拟断网、会话过期和教务维护，确认旧课表仍可查看。
+5. 添加/编辑/删除手工课程，重新同步后确认不被无提示覆盖。
+6. 在多个学期课表间切换，确认课程、提醒、Widget 和导出内容不串表。
+7. 验证通知、开机恢复、ICS 导出、登出和清除数据。
+8. 检查日志、备份产物和网络抓包中不存在密码、Cookie、ticket 或完整认证 URL。
+
+## 关键现有文件
+
+- `D:\Code\awake\app\build.gradle.kts`：依赖、KSP、测试和构建配置。
+- `D:\Code\awake\app\src\main\AndroidManifest.xml`：网络、WebView/Receiver/通知权限和 Application 声明。
+- `D:\Code\awake\app\src\main\java\com\example\awake\MainActivity.kt`：从示例入口重构为导航入口。
+- `D:\Code\awake\app\src\main\java\com\example\awake\db\Course.java`：旧课程 DTO，迁移期兼容。
+- `D:\Code\awake\app\src\main\java\com\example\awake\db\CourseDBHelper.java`：旧 SQLite 访问层，正式流程中废弃并以迁移替代。
+- `D:\Code\awake\app\src\androidTest\java\com\example\awake\db\CourseDBHelperTest.java`：现有 CRUD 测试，扩展为迁移/兼容测试参考。
+- `D:\Code\awake\登录方式与课表获取_流程总结.md`：SCUT 协议、字段、限制和合规边界的唯一现有业务资料。
+- `D:\Code\awake\app\src\main\res\xml\backup_rules.xml`、`data_extraction_rules.xml`：发布前更新敏感数据备份策略。
+
+计划的完成标准不是“请求能返回 JSON”，而是：用户可在官方页面登录，多个学年/学期课表被按周次正确规范化并原子保存，网络失败不损坏旧数据，离线可看，手动编辑/提醒/Widget/ICS 只访问当前本地课表，同时凭证和个人教育数据不被日志、备份或第三方服务泄露。
