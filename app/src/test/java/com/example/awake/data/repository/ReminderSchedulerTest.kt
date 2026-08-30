@@ -1,0 +1,115 @@
+package com.example.awake.data.repository
+
+import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.PeriodConfigEntity
+import com.example.awake.data.local.TimetableEntity
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class ReminderSchedulerTest {
+    private val zone = ZoneId.of("Asia/Shanghai")
+    private val now = Clock.fixed(Instant.parse("2026-08-29T00:00:00Z"), zone)
+    private val course = CourseEntity(
+        id = 7,
+        timetableId = 1,
+        source = "MANUAL",
+        name = "测试课",
+        dayOfWeek = 1,
+        startPeriod = 1,
+        endPeriod = 2
+    )
+
+    @Test
+    fun calculatesFutureReminder() {
+        val reminder = ReminderTimeCalculator.calculate(
+            course = course,
+            date = LocalDate.of(2026, 8, 29),
+            periodStart = LocalTime.of(9, 0),
+            minutesBefore = 15,
+            clock = now
+        )
+
+        requireNotNull(reminder)
+        assertEquals(7L, reminder.courseId)
+        assertEquals(LocalTime.of(8, 45), reminder.triggerAt.toLocalTime())
+        assertEquals(15, reminder.minutesBefore)
+    }
+
+    @Test
+    fun skipsReminderAlreadyInThePast() {
+        val reminder = ReminderTimeCalculator.calculate(
+            course = course,
+            date = LocalDate.of(2026, 8, 29),
+            periodStart = LocalTime.of(8, 0),
+            minutesBefore = 15,
+            clock = now
+        )
+
+        assertNull(reminder)
+    }
+
+    @Test
+    fun fakeSchedulerRecordsAndCancels() {
+        val scheduler = FakeReminderScheduler()
+        val reminder = Reminder(7, java.time.LocalDateTime.of(2026, 8, 29, 8, 45), 15)
+
+        scheduler.schedule(listOf(reminder))
+        scheduler.cancelForTimetable(1)
+
+        assertEquals(listOf(reminder), scheduler.scheduled)
+        assertEquals(listOf(1L), scheduler.cancelledTimetables)
+    }
+
+    @Test
+    fun plannerExpandsFutureWeeksAndUsesPeriodStart() {
+        val timetable = TimetableEntity(
+            id = 1,
+            profileId = 1,
+            xnm = 2026,
+            xqm = "3",
+            label = "测试学期",
+            startDate = "2026-08-31",
+            totalWeeks = 2
+        )
+        val course = course.copy(rawWeekText = "1-2", dayOfWeek = 1, startPeriod = 1)
+        val reminders = ReminderPlanner.plan(
+            timetable,
+            listOf(course),
+            listOf(PeriodConfigEntity(1, "08:00", "08:45")),
+            minutesBefore = 15,
+            clock = now
+        )
+
+        assertEquals(2, reminders.size)
+        assertEquals(LocalDate.of(2026, 8, 31), reminders.first().triggerAt.toLocalDate())
+        assertEquals(LocalTime.of(7, 45), reminders.first().triggerAt.toLocalTime())
+        assertEquals(1L, reminders.first().timetableId)
+    }
+
+    @Test
+    fun plannerSkipsTimetableWithoutStartDate() {
+        val timetable = TimetableEntity(
+            id = 1,
+            profileId = 1,
+            xnm = 2026,
+            xqm = "3",
+            label = "无日期学期",
+            startDate = null
+        )
+        val reminders = ReminderPlanner.plan(
+            timetable,
+            listOf(course),
+            listOf(PeriodConfigEntity(1, "08:00", "08:45")),
+            minutesBefore = 15,
+            clock = now
+        )
+
+        assertEquals(emptyList<Reminder>(), reminders)
+    }
+}

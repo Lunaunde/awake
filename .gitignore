@@ -1,4 +1,25 @@
-# 项目排除路径
-/.gradle/
-/build/
-/build/classes/
+# Gradle / Android build outputs
+.gradle/
+**/build/
+.kotlin/
+
+# Local machine configuration
+local.properties
+.idea/
+*.iml
+
+# Compiled artifacts
+*.class
+
+# Local screenshots, dumps and manual test captures
+/awake-*.png
+/black-screen-*.png
+/current-*.png
+/emulator-*.png
+/installed.png
+/stage*.png
+/term-reference-page-*.png
+/*.html
+/*.js
+/*.log
+/*.xml

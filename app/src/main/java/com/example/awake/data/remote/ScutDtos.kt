@@ -26,23 +26,39 @@ data class ScutSchedulePayload(val student: ScutStudentDto?, val courses: List<S
             val root = JSONObject(raw)
             val info = root.optJSONObject("xsxx")
             val student = info?.let { ScutStudentDto(it.string("xh"), it.string("xm")) }
+
+            val hasKbList = root.has("kbList") && !root.isNull("kbList")
+            val hasSjkList = root.has("sjkList") && !root.isNull("sjkList")
+            if (!hasKbList && !hasSjkList) {
+                throw IllegalArgumentException("响应缺少 kbList/sjkList 课程字段")
+            }
+
             val courses = mutableListOf<ScutCourseDto>()
-            readArray(root.optJSONArray("kbList"), "SCUT_KB", courses)
-            readArray(root.optJSONArray("sjkList"), "SCUT_SJK", courses)
+            readArray(root, "kbList", "SCUT_KB", courses)
+            readArray(root, "sjkList", "SCUT_SJK", courses)
             return ScutSchedulePayload(student, courses)
         }
 
-        private fun readArray(array: JSONArray?, source: String, output: MutableList<ScutCourseDto>) {
-            if (array == null) return
+        private fun readArray(
+            root: JSONObject,
+            key: String,
+            source: String,
+            output: MutableList<ScutCourseDto>
+        ) {
+            if (!root.has(key) || root.isNull(key)) return
+            val array = root.optJSONArray(key)
+                ?: throw IllegalArgumentException("响应字段 $key 不是数组")
             for (i in 0 until array.length()) {
                 val obj = array.optJSONObject(i) ?: continue
+                val dayName = obj.string("xqjmc").orEmpty()
                 output += ScutCourseDto(
                     source = source,
-                    name = obj.string("kcmc") ?: obj.string("kcmc_display") ?: "未命名课程",
+                    name = obj.string("kcmc") ?: obj.string("kcmc_display").orEmpty(),
                     teacher = obj.string("xm").orEmpty(),
                     room = obj.string("cdmc").orEmpty(),
-                    day = obj.string("xqj")?.toIntOrNull() ?: dayFromName(obj.string("xqjmc")),
-                    dayName = obj.string("xqjmc").orEmpty(),
+                    day = obj.string("xqj")?.toIntOrNull()?.takeIf { it in 1..7 }
+                        ?: dayFromName(dayName),
+                    dayName = dayName,
                     periods = obj.string("jcs").orEmpty(),
                     weeks = obj.string("zcd").orEmpty(),
                     credits = obj.string("xf"),
@@ -54,7 +70,9 @@ data class ScutSchedulePayload(val student: ScutStudentDto?, val courses: List<S
             }
         }
 
-        private fun JSONObject.string(key: String): String? = if (has(key) && !isNull(key)) opt(key)?.toString()?.trim() else null
+        private fun JSONObject.string(key: String): String? =
+            if (has(key) && !isNull(key)) opt(key)?.toString()?.trim()?.takeIf { it.isNotEmpty() } else null
+
         private fun dayFromName(name: String?): Int = when {
             name?.contains("一") == true -> 1
             name?.contains("二") == true -> 2
@@ -63,7 +81,7 @@ data class ScutSchedulePayload(val student: ScutStudentDto?, val courses: List<S
             name?.contains("五") == true -> 5
             name?.contains("六") == true -> 6
             name?.contains("日") == true || name?.contains("天") == true -> 7
-            else -> 1
+            else -> 0
         }
     }
 }

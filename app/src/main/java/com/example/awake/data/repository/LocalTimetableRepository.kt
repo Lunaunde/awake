@@ -5,11 +5,17 @@ import com.example.awake.data.local.AppDatabase
 import com.example.awake.data.local.CourseEntity
 import com.example.awake.data.local.CourseWeekEntity
 import com.example.awake.data.local.ProfileEntity
+import com.example.awake.data.local.PeriodConfigDefaults
 import com.example.awake.data.local.TimetableEntity
 import com.example.awake.domain.model.CourseSource
 import com.example.awake.domain.model.SchoolCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
+
+private val TIME_PATTERN = Regex("(?:[01]\\d|2[0-3]):[0-5]\\d")
 
 class LocalTimetableRepository(private val db: AppDatabase) {
     val activeProfile = db.profileDao().observeActive().map { it?.toDomain() }
@@ -26,21 +32,48 @@ class LocalTimetableRepository(private val db: AppDatabase) {
             maskedStudentId = studentId?.maskStudentId() ?: existing?.maskedStudentId,
             lastLoginAt = System.currentTimeMillis()
         )
-        val id = if (profile.id == 0L) db.profileDao().insert(profile) else { db.profileDao().update(profile); profile.id }
+        val id = if (profile.id == 0L) db.profileDao().insert(profile) else {
+            db.profileDao().update(profile)
+            profile.id
+        }
         return profile.copy(id = id)
     }
 
     fun observeTimetables(profileId: Long): Flow<List<TimetableEntity>> = db.timetableDao().observeForProfile(profileId)
+    suspend fun getTimetables(profileId: Long): List<TimetableEntity> = db.timetableDao().getAllForProfile(profileId)
     fun observeTimetable(id: Long): Flow<TimetableEntity?> = db.timetableDao().observeById(id)
     fun observeCourses(id: Long, week: Int): Flow<List<CourseEntity>> = db.courseDao().observeForWeek(id, week)
     fun observeCourse(id: Long): Flow<CourseEntity?> = db.courseDao().observeById(id)
+    suspend fun getCourseOrNull(id: Long): CourseEntity? = db.courseDao().getById(id)
+    suspend fun getAllCourses(timetableId: Long): List<CourseEntity> = db.courseDao().getAll(timetableId)
+    fun observePeriodConfigs() = db.periodConfigDao().observeAll()
+    suspend fun getPeriodConfigs() = db.periodConfigDao().getAll()
+    suspend fun savePeriodConfigs(configs: List<com.example.awake.data.local.PeriodConfigEntity>) {
+        require(configs.map { it.period }.distinct().size == configs.size) { "节次编号不能重复" }
+        require(configs.all { it.period in 1..PeriodConfigDefaults.periodCount && TIME_PATTERN.matches(it.startTime) && TIME_PATTERN.matches(it.endTime) }) {
+            "节次时间格式应为 HH:mm"
+        }
+        db.periodConfigDao().insertAll(configs)
+    }
     suspend fun getTimetable(id: Long): TimetableEntity = db.timetableDao().getById(id) ?: error("课表不存在")
+    suspend fun getTimetableOrNull(id: Long): TimetableEntity? = db.timetableDao().getById(id)
+    suspend fun getFirstTimetable(): TimetableEntity? = db.profileDao().getActive()?.let { db.timetableDao().getFirstForProfile(it.id) }
+    suspend fun findTimetable(profileId: Long, xnm: Int, xqm: String): TimetableEntity? =
+        db.timetableDao().find(profileId, xnm, xqm)
+
+    suspend fun createTimetable(profileId: Long, xnm: Int, xqm: String, label: String): TimetableEntity {
+        val value = TimetableEntity(profileId = profileId, xnm = xnm, xqm = xqm, label = label)
+        return value.copy(id = db.timetableDao().insert(value))
+    }
+
+    suspend fun updateTimetable(timetable: TimetableEntity) = db.timetableDao().update(timetable)
 
     suspend fun findOrCreateTimetable(profileId: Long, xnm: Int, xqm: String, label: String): TimetableEntity {
-        return db.timetableDao().find(profileId, xnm, xqm) ?: run {
-            val value = TimetableEntity(profileId = profileId, xnm = xnm, xqm = xqm, label = label)
-            value.copy(id = db.timetableDao().insert(value))
-        }
+        return findTimetable(profileId, xnm, xqm) ?: createTimetable(profileId, xnm, xqm, label)
+    }
+
+    suspend fun deleteTimetable(id: Long) = db.withTransaction {
+        db.timetableDao().deleteById(id)
     }
 
     suspend fun insertManualCourse(course: CourseEntity, weeks: Set<Int>): Long = db.withTransaction {
@@ -52,8 +85,23 @@ class LocalTimetableRepository(private val db: AppDatabase) {
     suspend fun updateCourse(course: CourseEntity) = db.courseDao().update(course)
     suspend fun deleteCourse(id: Long) = db.courseDao().deleteById(id)
 
+    /** 清理旧版本可能混入正式课表的演示样例，不触碰用户真正的手动课程。 */
+    suspend fun cleanupLegacyDemoCourses() = db.withTransaction {
+        val profile = db.profileDao().getActive()
+        if (profile != null) {
+            db.timetableDao().getAllForProfile(profile.id)
+                .filterNot { it.label.endsWith("（演示）") }
+                .forEach { timetable ->
+                    db.courseDao().deleteDemoWeeks(timetable.id)
+                    db.courseDao().deleteDemoCourses(timetable.id)
+                }
+        }
+    }
     /** weeks.courseId 在调用方传入时是 courses 列表下标，事务内会替换成真实 ID。 */
     suspend fun replaceRemoteCourses(timetable: TimetableEntity, courses: List<CourseEntity>, weeks: List<CourseWeekEntity>) = db.withTransaction {
+        // 演示课表曾经把样例课程保存成 MANUAL；真实导入时必须先清理这类样例，不能把它们带入正式课表。
+        db.courseDao().deleteDemoWeeks(timetable.id)
+        db.courseDao().deleteDemoCourses(timetable.id)
         db.courseDao().deleteRemoteWeeks(timetable.id)
         db.courseDao().deleteRemoteForTimetable(timetable.id)
         val ids = db.courseDao().insertCourses(courses)
@@ -64,7 +112,13 @@ class LocalTimetableRepository(private val db: AppDatabase) {
 
     suspend fun seedDemoTimetable(): TimetableEntity {
         val profile = ensureProfile()
-        val timetable = findOrCreateTimetable(profile.id, 2026, "3", "2026-2027 第一学期（演示）")
+        val demoLabel = "2026-2027 第一学期（演示）"
+        // 演示课表必须独立创建，不能因为学期相同而复用真实教务课表。
+        val original = getTimetables(profile.id).firstOrNull { it.label == demoLabel }
+            ?: createTimetable(profile.id, 2026, "3", demoLabel)
+        val timetable = if (original.startDate == null) {
+            original.copy(startDate = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY)).toString()).also { updateTimetable(it) }
+        } else original
         val existing = db.courseDao().getAll(timetable.id)
         if (existing.none { it.remoteKey.startsWith("demo") }) {
             val samples = listOf(
@@ -88,5 +142,3 @@ class LocalTimetableRepository(private val db: AppDatabase) {
     private fun String.maskStudentId(): String = if (length <= 4) "****" else take(2) + "****" + takeLast(2)
     private fun ProfileEntity.toDomain() = com.example.awake.domain.model.Profile(id, SchoolCode.SCUT, maskedStudentId, displayName, lastLoginAt)
 }
-
-

@@ -8,6 +8,10 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @deprecated 正式流程已迁移到 Room 的 AppDatabase；仅作为旧版本数据读取兼容层保留。
+ */
+@Deprecated
 public class CourseDBHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "course.db";
@@ -161,6 +165,4 @@ public class CourseDBHelper extends SQLiteOpenHelper {
         return list;
     }
 }
-
-
 

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Awake 课表</string>
+    <string name="widget_description">今日课表</string>
 </resources>

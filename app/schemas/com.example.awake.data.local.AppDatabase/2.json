@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "legacycourseschema0000000000000000",
+    "entities": [
+      {
+        "tableName": "courses",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT, `teacher` TEXT, `room` TEXT, `week_config` TEXT, `day` INTEGER, `start` INTEGER, `end` INTEGER, `color` INTEGER)",
+        "fields": [
+          { "fieldPath": "id", "columnName": "id", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "name", "columnName": "name", "affinity": "TEXT", "notNull": false },
+          { "fieldPath": "teacher", "columnName": "teacher", "affinity": "TEXT", "notNull": false },
+          { "fieldPath": "room", "columnName": "room", "affinity": "TEXT", "notNull": false },
+          { "fieldPath": "week_config", "columnName": "week_config", "affinity": "TEXT", "notNull": false },
+          { "fieldPath": "day", "columnName": "day", "affinity": "INTEGER", "notNull": false },
+          { "fieldPath": "start", "columnName": "start", "affinity": "INTEGER", "notNull": false },
+          { "fieldPath": "end", "columnName": "end", "affinity": "INTEGER", "notNull": false },
+          { "fieldPath": "color", "columnName": "color", "affinity": "INTEGER", "notNull": false }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": ["id"]
+        },
+        "indices": [
+          {
+            "name": "idx_day_start",
+            "unique": false,
+            "columnNames": ["day", "start"],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_day_start` ON `${TABLE_NAME}` (`day`, `start`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'legacycourseschema0000000000000000')"
+    ]
+  }
+}

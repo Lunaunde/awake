@@ -1,0 +1,77 @@
+# Awake 课表
+
+版本：**1.0.0**
+
+Awake 是一个本地优先的 Android 课表应用，首版支持华南理工大学（SCUT）官方 CAS 登录和教务课表导入。
+
+## 当前能力
+
+- 官方 CAS WebView 登录，不在 App 内保存密码、Cookie、ticket 或 token。
+- 支持直连教务入口和学校 WebVPN 官方门户入口。
+- 支持多个学年/学期课表，并在导入同一学期时选择“覆盖”或“新建”。
+- 课表按周次、星期和节次规范化保存，支持离线查看、手动编辑和课程详情。
+- 支持课前提醒、桌面小组件和 ICS 日历导出；这些功能只读取当前选中的本地课表。
+- 学校适配器通过 `SchoolAdapterRegistry` 注册。当前实际支持学校只有 SCUT，其他学校不会被静默当作 SCUT 处理。
+
+## 1.0.0 发布范围
+
+- SCUT 官方 CAS 登录，支持直连和 WebVPN 访问模式。
+- 多学年/学期课表导入，支持同学期“覆盖”或“新建”。
+- 周视图课表、周次左右滑动、课程详情和本地手动编辑。
+- 课表左侧显示 11 节默认时间，并可在设置中自定义。
+- 离线查看、课前提醒、桌面小组件和 ICS 日历导出。
+- 本地优先：不保存密码，不上传 Cookie、ticket 或课表数据。
+
+## 构建
+
+项目使用 Gradle Wrapper，Windows 下执行：
+
+```powershell
+.\\gradlew.bat :app:assembleDebug
+```
+
+Debug APK 输出到：
+
+```text
+app\\build\\outputs\\apk\\debug\\app-debug.apk
+```
+
+编译本地单元测试源码：
+
+```powershell
+.\\gradlew.bat :app:compileDebugUnitTestKotlin
+```
+
+运行单元测试：
+
+```powershell
+.\\gradlew.bat :app:testDebugUnitTest
+```
+
+> 推荐使用 JDK 17 运行 Gradle 构建和单元测试。当前开发机使用 Java 24 时，源码编译和 APK 打包可以通过，但部分完整单元测试任务可能受 Android Gradle Plugin 兼容性影响。
+
+Release 构建目前未配置正式签名密钥，产物为 unsigned APK；发布到应用商店或分发前，需要在本地安全配置签名信息，不要将密钥提交到 Git。
+
+如需设备验证：
+
+```powershell
+adb install -r app\\build\\outputs\\apk\\debug\\app-debug.apk
+```
+
+## 隐私与网络边界
+
+- 所有登录操作在学校官方页面完成，App 不实现或绕过密码加密、验证码、二次认证和风控。
+- 认证 Cookie 只保存在进程内存中；退出登录会清理内存会话。
+- 网络明文只对用户指定的 SCUT 教务直连域名开放，其他域名保持禁止明文通信。
+- 自动备份和设备迁移规则排除本地数据库、会话偏好和文件目录，避免课表及会话被无意转移。
+- 日志和测试 fixture 不应包含学号、密码、Cookie、ticket、token、完整认证 URL 或完整个人课表。
+- 请仅使用本人账号进行低频手动同步，并遵守学校信息化系统使用规定。
+
+## 验收重点
+
+1. 先登录官方 CAS，再选择学年、学期和课表名称导入。
+2. 同学期再次导入时确认覆盖/新建提示符合预期。
+3. 检查第 1 周、当前周、单周/双周课程及跨节次课程。
+4. 断网后确认已保存课表仍可查看；网络失败不能清空旧课表。
+5. 切换学期后确认课表、提醒、小组件和 ICS 导出不串数据。
+6. 删除数据后确认提醒和会话一并清理。

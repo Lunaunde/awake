@@ -2,10 +2,12 @@ package com.example.awake.ui.importterm
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,53 +16,88 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.awake.data.repository.LocalTimetableRepository
-import com.example.awake.data.repository.ScutScheduleRepository
-import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TermImportScreen(local: LocalTimetableRepository, remote: ScutScheduleRepository, onBack: () -> Unit, onDone: () -> Unit) {
-    var xnm by remember { mutableStateOf("2026") }
-    var xqm by remember { mutableStateOf("3") }
-    var label by remember { mutableStateOf("2026-2027 第一学期") }
-    var status by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone: () -> Unit) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     Scaffold(topBar = {
         CenterAlignedTopAppBar(title = { Text("导入学期课表") }, navigationIcon = {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
         })
     }) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier.padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text("SCUT 学年起始年（xnm）与学期码（xqm）")
-            OutlinedTextField(xnm, { xnm = it.filter(Char::isDigit) }, label = { Text("学年起始年，例如 2026") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(xqm, { xqm = it.filter(Char::isDigit) }, label = { Text("学期码：3 / 12 / 16") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(label, { label = it }, label = { Text("课表名称") }, modifier = Modifier.fillMaxWidth())
-            Button(enabled = !busy && xnm.isNotBlank() && xqm.isNotBlank(), onClick = {
-                scope.launch {
-                    busy = true; status = "正在创建课表并请求教务接口…"
-                    val result = runCatching {
-                        val profile = local.ensureProfile()
-                        val table = local.findOrCreateTimetable(profile.id, xnm.toInt(), xqm, label)
-                        val warnings = remote.import(table.id)
-                        if (warnings.isEmpty()) "导入成功" else "导入成功，跳过 ${warnings.size} 条无法解析的记录"
-                    }
-                    status = result.getOrElse { it.message ?: "导入失败，旧数据未被覆盖" }
-                    busy = false
-                    if (result.isSuccess) onDone()
-                }
-            }) { Text(if (busy) "导入中…" else "开始导入") }
-            Button(enabled = !busy, onClick = { scope.launch { local.seedDemoTimetable(); status = "已生成离线演示课表" } }) { Text("生成离线演示课表") }
-            status?.let { Text(it) }
+            OutlinedTextField(
+                state.xnm,
+                viewModel::setXnm,
+                label = { Text("学年起始年，例如 2026") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                state.xqm,
+                viewModel::setXqm,
+                label = { Text("学期码：3 / 12 / 16") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                state.label,
+                viewModel::setLabel,
+                label = { Text("课表名称") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                state.startDate,
+                viewModel::setStartDate,
+                label = { Text("学期第一周周一（yyyy-MM-dd）") },
+                supportingText = { Text("用于计算课前提醒和日历导出日期") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                enabled = !state.busy && state.xnm.isNotBlank() && state.xqm.isNotBlank() && state.label.isNotBlank(),
+                onClick = { viewModel.import(onDone) }
+            ) { Text(if (state.busy) "导入中…" else "开始导入") }
+            Button(enabled = !state.busy, onClick = viewModel::seedDemo) { Text("生成离线演示课表") }
+            state.status?.let { Text(it) }
         }
+    }
+
+    state.conflictTimetable?.let { existing ->
+        AlertDialog(
+            onDismissRequest = { if (!state.busy) viewModel.dismissConflict() },
+            title = { Text("发现同学期课表") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("已存在“${existing.label}”。请选择导入方式：")
+                    Text(
+                        "覆盖：替换该课表中的教务同步课程，手动添加的课程仍会保留。\n新建：保留原课表，另存为一份独立课表。"
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissConflict, enabled = !state.busy) { Text("取消") }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = { viewModel.createNew(onDone) },
+                        enabled = !state.busy
+                    ) { Text("新建") }
+                    Button(
+                        onClick = { viewModel.overwriteExisting(onDone) },
+                        enabled = !state.busy
+                    ) { Text("覆盖") }
+                }
+            }
+        )
     }
 }

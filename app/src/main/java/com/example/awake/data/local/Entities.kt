@@ -17,7 +17,8 @@ data class ProfileEntity(
 @Entity(
     tableName = "timetables",
     foreignKeys = [ForeignKey(entity = ProfileEntity::class, parentColumns = ["id"], childColumns = ["profileId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index(value = ["profileId", "xnm", "xqm"], unique = true)]
+    // 同一学期允许保留多份课表，导入时由用户选择覆盖或新建。
+    indices = [Index(value = ["profileId", "xnm", "xqm"])]
 )
 data class TimetableEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

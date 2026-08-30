@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Awake" parent="android:Theme.Material.Light.NoActionBar"/>
+    <style name="Theme.Awake" parent="android:style/Theme.Material.Light.NoActionBar">
+        <!-- 禁用 Android 12+ 的预览启动窗口，避免模拟器启动动画卡住后遮挡 Compose 内容。 -->
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
 </resources>
