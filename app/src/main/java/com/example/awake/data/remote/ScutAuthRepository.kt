@@ -9,8 +9,13 @@ class ScutAuthRepository(
     private val cookieStore: SessionCookieStore,
     private val coordinator: CasWebViewCoordinator = CasWebViewCoordinator(cookieStore)
 ) {
-    fun isAuthenticated(): Boolean =
-        cookieStore.has(CasWebViewCoordinator.JW_HOST, "JSESSIONID", "/jwglxt")
+    fun isAuthenticated(): Boolean = cookieStore.availableAccessModes().isNotEmpty()
+
+    /** 返回已经配置、可供课表请求尝试的入口，顺序固定为直连优先、VPN 其次。 */
+    fun configuredAccessModes(): List<ScutAccessMode> = cookieStore.availableAccessModes()
+
+    fun hasConfiguredSession(accessMode: ScutAccessMode): Boolean =
+        cookieStore.hasConfiguredSession(accessMode)
 
     fun attach(
         webView: WebView,
@@ -19,7 +24,10 @@ class ScutAuthRepository(
         onFailure: (String) -> Unit = {},
         onReady: () -> Unit = {},
         onSubmitting: () -> Unit = {},
-        onVerificationRequired: () -> Unit = {}
+        onVerificationRequired: () -> Unit = {},
+        onAcademicTerms: (List<com.example.awake.data.remote.RemoteAcademicYear>) -> Unit = {},
+        onAcademicTermsFailure: (String) -> Unit = {},
+        onAuthenticated: () -> Unit = {}
     ) = coordinator.attach(
         webView = webView,
         accessMode = accessMode,
@@ -27,7 +35,10 @@ class ScutAuthRepository(
         onFailure = onFailure,
         onReady = onReady,
         onSubmitting = onSubmitting,
-        onVerificationRequired = onVerificationRequired
+        onVerificationRequired = onVerificationRequired,
+        onAcademicTerms = onAcademicTerms,
+        onAcademicTermsFailure = onAcademicTermsFailure,
+        onAuthenticated = onAuthenticated
     )
 
     fun cancel(webView: WebView) = coordinator.cancel(webView)

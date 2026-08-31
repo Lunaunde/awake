@@ -37,7 +37,8 @@ fun AppNavHost(container: AppContainer) {
     val importer = ImportTimetableUseCase(container.localRepository, container.scutRepository)
     val login = LoginUseCase(container.authRepository, container.localRepository)
     val timetableVm: TimetableViewModel = viewModel(factory = TimetableViewModelFactory(
-        observe, refresh, container.localRepository, container.reminderCoordinator, container.timetableSelectionStore
+        observe, refresh, container.localRepository, container.reminderCoordinator,
+        container.timetableSelectionStore, container.timetableDisplaySettingsStore, container.scutRepository
     ))
     NavHost(navController = navController, startDestination = Routes.TIMETABLE) {
         composable(Routes.TIMETABLE) {
@@ -53,14 +54,19 @@ fun AppNavHost(container: AppContainer) {
             )
         }
         composable(Routes.LOGIN) {
-            val vm: AuthViewModel = viewModel(factory = AuthViewModelFactory(login))
+            val vm: AuthViewModel = viewModel(factory = AuthViewModelFactory(login, container.academicTermsCache))
             AuthScreen(vm, {
                 navController.navigate(Routes.TERM_IMPORT) { popUpTo(Routes.LOGIN) { inclusive = true } }
             }, navController::navigateUp)
         }
         composable(Routes.TERM_IMPORT) {
             val vm: TermImportViewModel = viewModel(factory = TermImportViewModelFactory(
-                container.localRepository, importer, container.reminderCoordinator, container.timetableSelectionStore
+                container.localRepository,
+                importer,
+                container.reminderCoordinator,
+                container.timetableSelectionStore,
+                 container.scutRepository,
+                container.academicTermsCache
             ))
             TermImportScreen(vm, navController::navigateUp) { navController.popBackStack(Routes.TIMETABLE, false) }
         }
@@ -70,7 +76,9 @@ fun AppNavHost(container: AppContainer) {
                 auth = container.authRepository,
                 reminderCoordinator = container.reminderCoordinator,
                 selection = container.timetableSelectionStore,
-                onBack = navController::navigateUp,
+                displaySettings = container.timetableDisplaySettingsStore,
+                remote = container.scutClient,
+                onBack = { navController.popBackStack() },
                 onLogin = { navController.navigate(Routes.LOGIN) }
             )
         }
@@ -107,3 +115,4 @@ fun AppNavHost(container: AppContainer) {
         }
     }
 }
+

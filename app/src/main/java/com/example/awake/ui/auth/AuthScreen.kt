@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -28,8 +29,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,7 +51,7 @@ fun AuthScreen(
 
     LaunchedEffect(selectedMode) {
         webViewState.value?.let { webView ->
-            viewModel.attach(webView, selectedMode)
+            viewModel.attach(webView, selectedMode, onAuthenticated)
         }
     }
 
@@ -67,89 +70,96 @@ fun AuthScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Text(
-                "请仅在官方页面输入本人账号。Awake 不读取或保存密码。",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                "选择网络入口",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                AccessModeCard(
-                    mode = ScutAccessMode.DIRECT,
-                    selected = selectedMode == ScutAccessMode.DIRECT,
-                    onClick = { viewModel.selectMode(ScutAccessMode.DIRECT) },
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "请仅在官方页面输入本人账号，Awake 不读取或保存密码。",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                AccessModeCard(
-                    mode = ScutAccessMode.WEB_VPN,
-                    selected = selectedMode == ScutAccessMode.WEB_VPN,
-                    onClick = { viewModel.selectMode(ScutAccessMode.WEB_VPN) },
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "网络入口",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
                 )
-            }
-            if (selectedMode == ScutAccessMode.WEB_VPN) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = MaterialTheme.shapes.medium
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        "WebVPN 模式会打开学校官方门户。当前先完成门户访问；学校 WebVPN 的代理地址结构确认后，再接入课表接口。",
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    AccessModeCard(
+                        mode = ScutAccessMode.DIRECT,
+                        selected = selectedMode == ScutAccessMode.DIRECT,
+                        onClick = { viewModel.selectMode(ScutAccessMode.DIRECT) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    AccessModeCard(
+                        mode = ScutAccessMode.WEB_VPN,
+                        selected = selectedMode == ScutAccessMode.WEB_VPN,
+                        onClick = { viewModel.selectMode(ScutAccessMode.WEB_VPN) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
-            }
-            Text(
-                uiState.status,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                "请先在下方官方页面完成账号、验证码及页面跳转，直到进入课表界面，再点击确认。Awake 不会自动点击或读取你的凭证。",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Button(
-                onClick = { viewModel.confirmCurrentPage(onAuthenticated) },
-                enabled = !uiState.confirming,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-            ) {
-                Text(if (uiState.confirming) "正在确认…" else "确认已进入课表，开始提取")
-            }
-            AndroidView(
+                if (selectedMode == ScutAccessMode.WEB_VPN) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            "WebVPN：先在学校官方门户登录，再进入教务课表。",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        uiState.status,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Button(
+                    onClick = { viewModel.confirmCurrentPage(onAuthenticated) },
+                    enabled = !uiState.confirming,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    factory = { ctx ->
-                        WebView(ctx).also { webView ->
-                            webViewState.value = webView
-                            viewModel.attach(webView, selectedMode)
-                        }
-                    },
-                    onRelease = { webView ->
-                        webViewState.value = null
-                        viewModel.cancel(webView)
-                        webView.destroy()
+                        .heightIn(min = 44.dp)
+                ) {
+                    Text(if (uiState.confirming) "正在检查…" else "没有自动跳转？重新检查登录状态")
+                }
+            }
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                factory = { ctx ->
+                    WebView(ctx).also { webView ->
+                        webViewState.value = webView
+                        viewModel.attach(webView, selectedMode, onAuthenticated)
                     }
-                )
+                },
+                onRelease = { webView ->
+                    webViewState.value = null
+                    viewModel.cancel(webView)
+                    webView.destroy()
+                }
+            )
         }
     }
 }
@@ -173,19 +183,34 @@ private fun AccessModeCard(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     Card(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .heightIn(min = 58.dp)
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         shape = MaterialTheme.shapes.medium
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(icon, contentDescription = null, tint = contentColor)
-            Column {
-                Text(mode.title, color = contentColor, fontWeight = FontWeight.SemiBold)
-                Text(mode.description, color = contentColor, style = MaterialTheme.typography.labelSmall)
+            Column(modifier = Modifier.padding(start = 8.dp)) {
+                Text(
+                    mode.title,
+                    color = contentColor,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    mode.description,
+                    color = contentColor,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

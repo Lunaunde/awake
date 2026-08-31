@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.awake.data.local.CourseEntity
 import com.example.awake.data.repository.LocalTimetableRepository
 import com.example.awake.data.repository.ReminderCoordinator
+import com.example.awake.domain.parser.WeekExpressionParser
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -18,7 +19,8 @@ class CourseDetailViewModel(
     val course: StateFlow<CourseEntity?> = local.observeCourse(courseId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun save(course: CourseEntity, onDone: () -> Unit) = viewModelScope.launch {
-        local.updateCourse(course)
+        val parsedWeeks = WeekExpressionParser.parse(course.rawWeekText, maxWeek = 30).weeks
+        local.updateCourse(course, parsedWeeks)
         reminderCoordinator.reschedule(course.timetableId)
         onDone()
     }
@@ -39,3 +41,4 @@ class CourseDetailViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
         CourseDetailViewModel(local, reminderCoordinator, courseId) as T
 }
+

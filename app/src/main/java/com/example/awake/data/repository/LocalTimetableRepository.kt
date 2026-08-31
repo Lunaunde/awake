@@ -43,6 +43,8 @@ class LocalTimetableRepository(private val db: AppDatabase) {
     suspend fun getTimetables(profileId: Long): List<TimetableEntity> = db.timetableDao().getAllForProfile(profileId)
     fun observeTimetable(id: Long): Flow<TimetableEntity?> = db.timetableDao().observeById(id)
     fun observeCourses(id: Long, week: Int): Flow<List<CourseEntity>> = db.courseDao().observeForWeek(id, week)
+    fun observeCoursesThroughEnd(id: Long, week: Int): Flow<List<CourseEntity>> = db.courseDao().observeThroughEnd(id, week)
+    fun observeAllCourses(id: Long): Flow<List<CourseEntity>> = db.courseDao().observeAll(id)
     fun observeCourse(id: Long): Flow<CourseEntity?> = db.courseDao().observeById(id)
     suspend fun getCourseOrNull(id: Long): CourseEntity? = db.courseDao().getById(id)
     suspend fun getAllCourses(timetableId: Long): List<CourseEntity> = db.courseDao().getAll(timetableId)
@@ -82,7 +84,15 @@ class LocalTimetableRepository(private val db: AppDatabase) {
         id
     }
 
-    suspend fun updateCourse(course: CourseEntity) = db.courseDao().update(course)
+suspend fun updateCourse(course: CourseEntity, weeks: Set<Int>? = null) = db.withTransaction {
+        db.courseDao().update(course)
+        if (weeks != null) {
+            db.courseDao().deleteWeeks(course.id)
+            if (weeks.isNotEmpty()) {
+                db.courseDao().insertWeeks(weeks.map { CourseWeekEntity(course.id, it) })
+            }
+        }
+    }
     suspend fun deleteCourse(id: Long) = db.courseDao().deleteById(id)
 
     /** 清理旧版本可能混入正式课表的演示样例，不触碰用户真正的手动课程。 */
@@ -142,3 +152,4 @@ class LocalTimetableRepository(private val db: AppDatabase) {
     private fun String.maskStudentId(): String = if (length <= 4) "****" else take(2) + "****" + takeLast(2)
     private fun ProfileEntity.toDomain() = com.example.awake.domain.model.Profile(id, SchoolCode.SCUT, maskedStudentId, displayName, lastLoginAt)
 }
+

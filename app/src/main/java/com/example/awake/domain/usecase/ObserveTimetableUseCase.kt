@@ -13,5 +13,7 @@ class ObserveTimetableUseCase(private val local: LocalTimetableRepository) {
     fun timetables(profileId: Long): Flow<List<TimetableEntity>> = local.observeTimetables(profileId)
     fun timetable(timetableId: Long): Flow<TimetableEntity?> = local.observeTimetable(timetableId)
     fun courses(timetableId: Long, week: Int): Flow<List<CourseEntity>> = local.observeCourses(timetableId, week)
+    fun coursesThroughEnd(timetableId: Long, week: Int): Flow<List<CourseEntity>> = local.observeCoursesThroughEnd(timetableId, week)
+    fun allCourses(timetableId: Long): Flow<List<CourseEntity>> = local.observeAllCourses(timetableId)
     fun course(courseId: Long): Flow<CourseEntity?> = local.observeCourse(courseId)
 }

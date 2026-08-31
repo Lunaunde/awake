@@ -34,12 +34,16 @@ interface TimetableDao {
 @Dao
 interface CourseDao {
     @Query("SELECT c.* FROM courses c WHERE c.timetableId = :timetableId AND EXISTS (SELECT 1 FROM course_weeks w WHERE w.courseId = c.id AND w.weekNumber = :week) ORDER BY c.dayOfWeek, c.startPeriod") fun observeForWeek(timetableId: Long, week: Int): Flow<List<CourseEntity>>
+    // 显示非本周课程时，只保留当前周或未来仍有课的课程；课程最后一周结束后不再显示。
+    @Query("SELECT c.* FROM courses c WHERE c.timetableId = :timetableId AND EXISTS (SELECT 1 FROM course_weeks w WHERE w.courseId = c.id AND w.weekNumber >= :week) ORDER BY c.dayOfWeek, c.startPeriod, c.name") fun observeThroughEnd(timetableId: Long, week: Int): Flow<List<CourseEntity>>
     @Query("SELECT * FROM courses WHERE timetableId = :timetableId ORDER BY dayOfWeek, startPeriod, name") suspend fun getAll(timetableId: Long): List<CourseEntity>
+    @Query("SELECT * FROM courses WHERE timetableId = :timetableId ORDER BY dayOfWeek, startPeriod, name") fun observeAll(timetableId: Long): Flow<List<CourseEntity>>
     @Query("SELECT * FROM courses WHERE id = :id LIMIT 1") fun observeById(id: Long): Flow<CourseEntity?>
     @Query("SELECT * FROM courses WHERE id = :id LIMIT 1") suspend fun getById(id: Long): CourseEntity?
     @Query("SELECT id FROM timetables") suspend fun getAllTimetableIds(): List<Long>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCourses(courses: List<CourseEntity>): List<Long>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertWeeks(weeks: List<CourseWeekEntity>)
+    @Query("DELETE FROM course_weeks WHERE courseId = :courseId") suspend fun deleteWeeks(courseId: Long)
     @Update suspend fun update(course: CourseEntity)
     @Query("DELETE FROM courses WHERE id = :id") suspend fun deleteById(id: Long)
     @Query("DELETE FROM courses WHERE timetableId = :timetableId AND source IN ('SCUT_KB', 'SCUT_SJK')") suspend fun deleteRemoteForTimetable(timetableId: Long)
@@ -56,3 +60,4 @@ interface PeriodConfigDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(configs: List<PeriodConfigEntity>)
     @Query("DELETE FROM period_configs WHERE period > :maxPeriod") suspend fun deleteAfter(maxPeriod: Int)
 }
+

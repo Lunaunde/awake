@@ -28,7 +28,8 @@ class ImportTimetableUseCase(
         xnm: Int,
         xqm: String,
         label: String,
-        policy: ExistingTimetablePolicy = ExistingTimetablePolicy.CREATE_NEW
+        policy: ExistingTimetablePolicy = ExistingTimetablePolicy.CREATE_NEW,
+        selectedRemoteKeys: Set<String>? = null
     ): ImportTimetableResult {
         require(xnm > 0) { "学年起始年无效" }
         require(xqm.isNotBlank()) { "学期码不能为空" }
@@ -43,7 +44,7 @@ class ImportTimetableUseCase(
         }
         val createdForThisImport = policy == ExistingTimetablePolicy.CREATE_NEW || existing == null
         return try {
-            val warnings = remote.import(timetable.id)
+            val warnings = remote.import(timetable.id, selectedRemoteKeys)
             ImportTimetableResult(timetable, warnings)
         } catch (error: Throwable) {
             if (createdForThisImport) local.deleteTimetable(timetable.id)

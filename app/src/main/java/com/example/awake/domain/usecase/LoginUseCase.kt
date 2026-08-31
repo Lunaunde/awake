@@ -21,7 +21,10 @@ class LoginUseCase(
         onFailure: (String) -> Unit = {},
         onReady: () -> Unit = {},
         onSubmitting: () -> Unit = {},
-        onVerificationRequired: () -> Unit = {}
+        onVerificationRequired: () -> Unit = {},
+        onAcademicTerms: (List<com.example.awake.data.remote.RemoteAcademicYear>) -> Unit = {},
+        onAcademicTermsFailure: (String) -> Unit = {},
+        onAuthenticated: () -> Unit = {}
     ) = auth.attach(
         webView = webView,
         accessMode = accessMode,
@@ -29,7 +32,10 @@ class LoginUseCase(
         onFailure = onFailure,
         onReady = onReady,
         onSubmitting = onSubmitting,
-        onVerificationRequired = onVerificationRequired
+        onVerificationRequired = onVerificationRequired,
+        onAcademicTerms = onAcademicTerms,
+        onAcademicTermsFailure = onAcademicTermsFailure,
+        onAuthenticated = onAuthenticated
     )
 
     fun cancel(webView: WebView) = auth.cancel(webView)

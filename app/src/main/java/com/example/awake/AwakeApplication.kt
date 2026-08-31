@@ -11,6 +11,7 @@ import com.example.awake.data.mapper.ScutScheduleMapper
 import com.example.awake.data.notification.AndroidReminderScheduler
 import com.example.awake.data.notification.NotificationChannels
 import com.example.awake.data.remote.CasWebViewCoordinator
+import com.example.awake.data.remote.AcademicTermsCache
 import com.example.awake.data.remote.SchoolAdapterRegistry
 import com.example.awake.data.remote.ScutAuthRepository
 import com.example.awake.data.remote.ScutJwClient
@@ -19,6 +20,7 @@ import com.example.awake.data.repository.LocalTimetableRepository
 import com.example.awake.data.repository.ReminderCoordinator
 import com.example.awake.data.repository.ReminderSettingsStore
 import com.example.awake.data.repository.TimetableSelectionStore
+import com.example.awake.data.repository.TimetableDisplaySettingsStore
 import com.example.awake.data.repository.ScutScheduleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,17 +52,20 @@ class AppContainer(context: android.content.Context) {
         .addMigrations(AppDatabase.MIGRATION_3_4)
         .build()
     val cookieStore = SessionCookieStore()
+    val academicTermsCache = AcademicTermsCache()
     val casCoordinator = CasWebViewCoordinator(cookieStore)
     val authRepository = ScutAuthRepository(cookieStore, casCoordinator)
     val localRepository = LocalTimetableRepository(database)
     val reminderSettingsStore = ReminderSettingsStore(context)
+    val timetableDisplaySettingsStore = TimetableDisplaySettingsStore(context)
     val timetableSelectionStore = TimetableSelectionStore(context)
     val reminderScheduler = AndroidReminderScheduler(context)
     val reminderCoordinator = ReminderCoordinator(localRepository, reminderScheduler, reminderSettingsStore, timetableSelectionStore)
     val schoolAdapterRegistry = SchoolAdapterRegistry()
+    val scutClient = ScutJwClient(cookieStore)
     val scutRepository = ScutScheduleRepository(
         local = localRepository,
-        client = ScutJwClient(cookieStore),
+        client = scutClient,
         mapper = ScutScheduleMapper(),
         adapters = schoolAdapterRegistry
     )

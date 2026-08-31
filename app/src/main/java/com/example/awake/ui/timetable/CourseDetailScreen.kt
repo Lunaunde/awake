@@ -32,6 +32,7 @@ fun CourseDetailScreen(viewModel: CourseDetailViewModel, onBack: () -> Unit) {
     var room by remember(original?.id) { mutableStateOf(original?.room.orEmpty()) }
     var start by remember(original?.id) { mutableStateOf(original?.startPeriod?.toString().orEmpty()) }
     var end by remember(original?.id) { mutableStateOf(original?.endPeriod?.toString().orEmpty()) }
+    var weeks by remember(original?.id) { mutableStateOf(original?.rawWeekText.orEmpty()) }
 
     Scaffold(topBar = {
         CenterAlignedTopAppBar(title = { Text("课程详情") }, navigationIcon = {
@@ -48,13 +49,21 @@ fun CourseDetailScreen(viewModel: CourseDetailViewModel, onBack: () -> Unit) {
                 OutlinedTextField(room, { room = it }, label = { Text("教室") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(start, { start = it.filter(Char::isDigit) }, label = { Text("开始节次") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(end, { end = it.filter(Char::isDigit) }, label = { Text("结束节次") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = weeks,
+                    onValueChange = { weeks = it },
+                    label = { Text("上课周次") },
+                    placeholder = { Text("如：1-16周、单周") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Button(onClick = {
                     viewModel.save(current.copy(
                         name = name,
                         teacher = teacher,
                         room = room,
                         startPeriod = start.toIntOrNull() ?: current.startPeriod,
-                        endPeriod = end.toIntOrNull() ?: current.endPeriod
+                        endPeriod = end.toIntOrNull() ?: current.endPeriod,
+                        rawWeekText = weeks.trim()
                     ), onBack)
                 }, modifier = Modifier.fillMaxWidth()) { Text("保存修改") }
                 Button(onClick = { viewModel.delete(current.id, onBack) }, modifier = Modifier.fillMaxWidth()) { Text("删除课程") }

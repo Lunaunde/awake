@@ -45,4 +45,40 @@ class SessionCookieStoreTest {
         assertTrue(store.isEmpty())
         assertEquals("", store.cookieHeaderFor("example.com"))
     }
+
+    @Test
+    fun directAndVpnSessionsAreKeptSeparately() {
+        val store = SessionCookieStore()
+        store.put(
+            "direct.example.com",
+            "/jwglxt",
+            "JSESSIONID",
+            "direct-session",
+            accessMode = ScutAccessMode.DIRECT
+        )
+        store.put(
+            "vpn.example.com",
+            "/proxy/jwglxt",
+            "JSESSIONID",
+            "vpn-session",
+            accessMode = ScutAccessMode.WEB_VPN
+        )
+
+        assertEquals(
+            "JSESSIONID=direct-session",
+            store.cookieHeaderFor("direct.example.com", "/jwglxt/kbcx", ScutAccessMode.DIRECT)
+        )
+        assertEquals(
+            "",
+            store.cookieHeaderFor("direct.example.com", "/jwglxt/kbcx", ScutAccessMode.WEB_VPN)
+        )
+        assertEquals(
+            "JSESSIONID=vpn-session",
+            store.cookieHeaderFor("vpn.example.com", "/proxy/jwglxt/kbcx", ScutAccessMode.WEB_VPN)
+        )
+
+        store.clearSession(ScutAccessMode.WEB_VPN)
+        assertFalse(store.isEmpty(ScutAccessMode.DIRECT))
+        assertTrue(store.isEmpty(ScutAccessMode.WEB_VPN))
+    }
 }

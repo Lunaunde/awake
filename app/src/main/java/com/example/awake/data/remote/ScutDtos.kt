@@ -19,7 +19,17 @@ data class ScutCourseDto(
     val courseType: String?,
     val assessment: String?,
     val className: String?
-)
+) {
+    /** 用教务原始字段生成稳定标识，预览选择与最终导入使用同一规则。 */
+    fun remoteKey(): String = sha256(
+        listOf(source, name, teacher, room, day, periods, weeks, className).joinToString("|")
+    )
+
+    private fun sha256(value: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+}
 data class ScutSchedulePayload(val student: ScutStudentDto?, val courses: List<ScutCourseDto>) {
     companion object {
         fun fromJson(raw: String): ScutSchedulePayload {
