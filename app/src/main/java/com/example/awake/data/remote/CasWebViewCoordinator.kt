@@ -224,6 +224,43 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
         private const val COURSE_MODULE_CODE = "N2151"
         private const val ACADEMIC_TERMS_MAX_ATTEMPTS = 10
         private const val ACADEMIC_TERMS_RETRY_DELAY_MS = 500L
+        private const val PORTAL_SCAN_MAX_ATTEMPTS = 8
+        private const val PORTAL_SCAN_RETRY_DELAY_MS = 800L
+        private const val COOKIE_CLEANUP_FALLBACK_DELAY_MS = 2500L
+
+        /** 判定为「入口网络不可达」的 WebView 主框架错误码（连接拒绝/域名解析/超时/IO）。 */
+        private val CONNECTIVITY_ERROR_CODES = setOf(
+            WebViewClient.ERROR_CONNECT,
+            WebViewClient.ERROR_HOST_LOOKUP,
+            WebViewClient.ERROR_TIMEOUT,
+            WebViewClient.ERROR_IO
+        )
+
+        /** 扫描 WebVPN 门户主页全部（含同源 frame 内）链接，交给原生侧选择教务入口。 */
+        private val PORTAL_LINK_SCAN_SCRIPT = """
+            (() => {
+              const hits = [];
+              function collect(doc) {
+                if (!doc) return;
+                try {
+                  Array.from(doc.querySelectorAll('a[href]')).forEach(a => {
+                    const href = (a.href || '').trim();
+                    if (!href || href === '#' || href.toLowerCase().startsWith('javascript:')) return;
+                    const text = ((a.textContent || '') + ' ' + (a.title || '') + ' ' + (a.getAttribute('data-title') || ''))
+                      .replace(/\s+/g, ' ').trim();
+                    hits.push({ href: href, text: text.slice(0, 120) });
+                  });
+                } catch (e) {}
+              }
+              collect(document);
+              try {
+                for (let i = 0; i < window.frames.length; i++) {
+                  try { collect(window.frames[i].document); } catch (e) {}
+                }
+              } catch (e) {}
+              return JSON.stringify(hits);
+            })();
+        """.trimIndent()
     }
 
     fun attach(
@@ -231,9 +268,11 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
         accessMode: ScutAccessMode = ScutAccessMode.DIRECT,
         onBlocked: (String) -> Unit,
         onFailure: (String) -> Unit = {},
+        onNetworkFailure: (String) -> Unit = {},
         onReady: () -> Unit = {},
         onSubmitting: () -> Unit = {},
         onVerificationRequired: () -> Unit = {},
+        onAutoNavigating: () -> Unit = {},
         onAcademicTerms: (List<RemoteAcademicYear>) -> Unit = {},
         onAcademicTermsFailure: (String) -> Unit = {},
         onAuthenticated: () -> Unit = {}
@@ -247,6 +286,10 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
         var authenticationReported = false
         var academicTermsReadStarted = false
         var academicTermsReported = false
+        var autoJumpInProgress = false
+        var autoJumpAttempt = 0
+        var autoJumpExhausted = false
+        var autoJumpGeneration = 0
         val manager = CookieManager.getInstance()
         manager.setAcceptCookie(true)
         manager.setAcceptThirdPartyCookies(webView, true)
@@ -353,9 +396,75 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
             }
         }
 
+        fun parsePortalLinks(raw: String): List<WebVpnPortalJump.LinkHit> = runCatching {
+            val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return@runCatching emptyList()
+            val array = org.json.JSONArray(decoded)
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val href = item.optString("href").trim()
+                if (href.isBlank()) null else WebVpnPortalJump.LinkHit(href, item.optString("text"))
+            }
+        }.getOrDefault(emptyList())
+
+        fun scanPortalLinks(view: WebView, attempt: Int, generation: Int) {
+            if (generation != autoJumpGeneration) {
+                autoJumpInProgress = false
+                return
+            }
+            view.evaluateJavascript(PORTAL_LINK_SCAN_SCRIPT) { raw ->
+                if (generation != autoJumpGeneration) {
+                    autoJumpInProgress = false
+                    return@evaluateJavascript
+                }
+                val hits = parsePortalLinks(raw)
+                val target = WebVpnPortalJump.selectJumpTarget(hits)
+                if (target != null && isAllowed(target.href, accessMode)) {
+                    autoJumpInProgress = false
+                    autoJumpExhausted = true
+                    Log.i(TAG, "portal auto jump target attempt=${attempt + 1} hits=${hits.size}")
+                    onAutoNavigating()
+                    view.post { view.loadUrl(target.href) }
+                } else if (attempt + 1 < PORTAL_SCAN_MAX_ATTEMPTS) {
+                    view.postDelayed(
+                        { scanPortalLinks(view, attempt + 1, generation) },
+                        PORTAL_SCAN_RETRY_DELAY_MS
+                    )
+                } else {
+                    autoJumpInProgress = false
+                    autoJumpExhausted = true
+                    Log.w(TAG, "portal auto jump gave up after ${attempt + 1} scans; keeping WebView interactive")
+                }
+            }
+        }
+
+        /**
+         * WebVPN 模式：门户登录完成后自动从门户主页中找到教务系统入口并跳转，
+         * 之后与直连模式共用同一套「教务页面 → 学年读取 → 会话接管」流程，
+         * 不再要求用户手动在门户内寻找教务系统。
+         */
+        fun maybeAutoJumpFromPortal(view: WebView, url: String) {
+            if (accessMode != ScutAccessMode.WEB_VPN) return
+            if (authenticationReported || academicTermsReadStarted) return
+            if (!WebVpnPortalJump.isPortalHomePage(url)) return
+            if (autoJumpExhausted || autoJumpInProgress) return
+            autoJumpInProgress = true
+            val generation = autoJumpGeneration
+            val attempt = autoJumpAttempt
+            autoJumpAttempt += 1
+            Log.d(TAG, "portal auto jump scan attempt=${attempt + 1}")
+            scanPortalLinks(view, attempt, generation)
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 Log.d(TAG, "page started ${safeLocation(url)}")
+                autoJumpGeneration += 1
+                if (!WebVpnPortalJump.isPortalHomePage(url)) {
+                    // 离开门户主页（例如进入 SSO 登录页）后重新允许下一轮自动跳转扫描。
+                    autoJumpAttempt = 0
+                    autoJumpExhausted = false
+                    autoJumpInProgress = false
+                }
                 if (isAllowed(url, accessMode)) recordLoginLoop(url)
             }
 
@@ -384,7 +493,13 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
                 Log.e(TAG, "load error mainFrame=${request.isForMainFrame} " +
                     "code=${error.errorCode} description=${safeConsoleMessage(error.description.toString())} " +
                     safeLocation(request.url.toString()))
-                if (request.isForMainFrame) reportFailureOnce("官方${accessMode.title}页面加载失败，请检查网络后重试")
+                if (request.isForMainFrame) {
+                    val reason = "官方${accessMode.title}页面加载失败，请检查网络后重试"
+                    reportFailureOnce(reason)
+                    if (error.errorCode in CONNECTIVITY_ERROR_CODES) {
+                        onNetworkFailure(reason)
+                    }
+                }
             }
 
             override fun onReceivedHttpError(
@@ -416,6 +531,9 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
                 }
                 installDebugPageHooks(view)
                 detectSecondFactorPage(view, onVerificationRequired)
+                // WebVPN：门户登录完成后自动寻找并打开教务系统，之后与直连共用
+                // 下方的学年读取与认证成功判定，不需要用户手动选择跳转。
+                maybeAutoJumpFromPortal(view, url)
                 // 登录页、验证码页和二次认证页不会触发；只有进入非登录教务页面
                 // 且拿到 /jwglxt 路径的 JSESSIONID 才认为认证成功。
                                 if (!academicTermsReadStarted && isAcademicTermsPage(url, accessMode)) {
@@ -444,15 +562,24 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
         // removeAllCookies 是异步操作。必须等回调完成后再打开入口，避免清理动作
         // 在登录过程中晚到，把刚刚由 CAS 下发的会话 Cookie 删除，形成 JW↔CAS 循环。
         // 这里仅清理 WebView 的临时 Cookie；内存中的直连/VPN 会话分别保存，不能清空另一入口。
-        manager.removeAllCookies {
-            Log.d(TAG, "cookie cleanup completed accessMode=$accessMode")
-            cookieStore.clearSession(accessMode)
+        // 个别系统 WebView 在页面刚加载失败时可能不回调 removeAllCookies，导致切换
+        // 入口后 WebView 永远停留在旧错误页；因此挂一个超时兜底，保证一定开始导航。
+        var navigationStarted = false
+        fun startNavigation() {
+            if (navigationStarted) return
+            navigationStarted = true
             val startUrl = when (accessMode) {
                 ScutAccessMode.DIRECT -> DIRECT_ENTRY_URL
                 ScutAccessMode.WEB_VPN -> WEB_VPN_URL
             }
             webView.post { webView.loadUrl(startUrl) }
         }
+        manager.removeAllCookies {
+            Log.d(TAG, "cookie cleanup completed accessMode=$accessMode")
+            cookieStore.clearSession(accessMode)
+            startNavigation()
+        }
+        webView.postDelayed({ startNavigation() }, COOKIE_CLEANUP_FALLBACK_DELAY_MS)
     }
 
     /**
@@ -474,7 +601,7 @@ class CasWebViewCoordinator(private val cookieStore: SessionCookieStore) {
         if (!isJwPage) {
             val message = when {
                 accessMode == ScutAccessMode.WEB_VPN && host == WEB_VPN_HOST ->
-                    "当前仍在 WebVPN 门户，请先在门户内打开教务系统"
+                    "当前仍在 WebVPN 门户；自动打开教务系统未成功，请在门户内打开教务系统后重试"
                 else ->
                     "当前还不是已登录的教务系统页面，请在官方页面完成登录"
             }

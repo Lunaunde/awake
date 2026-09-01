@@ -111,7 +111,7 @@ fun AuthScreen(
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            "WebVPN：先在学校官方门户登录，再进入教务课表。",
+                            "WebVPN：登录学校门户后将自动打开教务系统，无需手动选择跳转。",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,

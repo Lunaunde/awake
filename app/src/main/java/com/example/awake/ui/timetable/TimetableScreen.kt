@@ -82,6 +82,7 @@ internal fun currentWeekOf(timetable: TimetableEntity?): Int? {
 @Composable
 fun TimetableScreen(
     viewModel: TimetableViewModel,
+    auth: com.example.awake.data.remote.ScutAuthRepository,
     onLogin: () -> Unit,
     onImportAdd: () -> Unit,
     onImportOverwrite: () -> Unit,
@@ -102,7 +103,10 @@ fun TimetableScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val syncState by viewModel.syncState.collectAsStateWithLifecycle()
     val pendingSyncConfirm by viewModel.pendingSyncConfirm.collectAsStateWithLifecycle()
-    val isLoggedIn = profile?.displayName?.isNotBlank() == true && profile?.displayName != "未登录"
+    // 直连/VPN 登录完成后本地档案名称要等首次导入才会更新，因此登录状态
+    // 以进程内教务会话为准，档案名称仅作兜底（进程重启后会话丢失时使用）。
+    val isLoggedIn = auth.isAuthenticated() ||
+        (profile?.displayName?.isNotBlank() == true && profile?.displayName != "未登录")
     var showControlSheet by remember { mutableStateOf(false) }
     // 「+」与「创建课表」共用的模式选择弹窗。
     var showImportModeDialog by remember { mutableStateOf(false) }
@@ -111,6 +115,12 @@ fun TimetableScreen(
     // 推算真实“当前周”：默认定位与本周标记共用。
     val actualCurrentWeek = remember(selectedTimetable?.id, selectedTimetable?.startDate) {
         currentWeekOf(selectedTimetable)
+    }
+    // 查看本周时标记今天所在列（周一=1…周日=7），用于表头加深刻画。
+    val todayDayOfWeek = if (actualCurrentWeek != null && week == actualCurrentWeek) {
+        LocalDate.now().dayOfWeek.value
+    } else {
+        null
     }
 
     // 进入主界面且已有登录档案时自动检查会话并同步一次，用户仍可通过顶部按钮手动刷新。
@@ -197,6 +207,7 @@ fun TimetableScreen(
                         selectedId?.let { onAddCourse(it, day, period) }
                     },
                     onWeekSwipe = { delta -> viewModel.selectWeek(week + delta) },
+                    todayDayOfWeek = todayDayOfWeek,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp)
@@ -334,7 +345,12 @@ private fun CompactTimetableHeader(
             Text(
                 text = date ?: "本地优先 · 离线可看",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isCurrentWeek) FontWeight.Medium else FontWeight.Normal,
+                color = if (isCurrentWeek) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 maxLines = 1
             )
         }
@@ -390,7 +406,7 @@ private fun TimetableControlSheet(
                     fontWeight = FontWeight.Bold
                 )
                 Text(selectedTimetable?.label ?: "未选择学期课表", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("本周 $courseCount 门课程", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text("本周 $courseCount 节课", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
 

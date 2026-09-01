@@ -11,6 +11,7 @@ import com.example.awake.data.remote.RemoteAcademicYear
 import com.example.awake.data.remote.AcademicTermsCache
 import com.example.awake.data.remote.RemoteSemester
 import com.example.awake.data.remote.ScutHttpException
+import com.example.awake.data.remote.ScutAuthRepository
 import com.example.awake.data.remote.SessionAvailability
 import com.example.awake.data.remote.SessionAvailabilityState
 import com.example.awake.data.remote.ScutCourseDto
@@ -56,7 +57,12 @@ data class ImportCourseOption(
     val day: Int,
     val periodText: String,
     val subtitle: String,
-    val selected: Boolean = true
+    val selected: Boolean = true,
+    /**
+     * 主课程键：与导入映射器使用同一规则（课程名 + 教学班号，缺失退化为教师）。
+     * 教务返回同一门课的多个时段时会有多条选项，统计“几门课”必须按此键去重。
+     */
+    val masterKey: String = ""
 )
 
 enum class SessionUiStatus {
@@ -94,7 +100,12 @@ data class TermImportUiState(
     /** 覆盖模式的目标课表名称（进入页面时就近读取，用于横幅提示）。 */
     val overwriteTargetLabel: String? = null,
     /** 是否已有登录档案（用于教务系统导入区显示“去登录”）。 */
-    val isLoggedIn: Boolean = false
+    val isLoggedIn: Boolean = false,
+    /**
+     * 待导入区当前聚焦展示的课表 key：导入多个课表时只展示这一份，
+     * 通过下拉列表切换，默认聚焦最近添加/暂存的那一份。
+     */
+    val focusedTermKey: String? = null
 )
 
 class TermImportViewModel(
@@ -104,6 +115,7 @@ class TermImportViewModel(
     private val selection: TimetableSelectionStore,
     private val remote: ScutScheduleRepository,
     private val academicTermsCache: AcademicTermsCache,
+    private val auth: ScutAuthRepository,
     private val importMode: ImportMode = ImportMode.ADD,
     private val jsonTimetableStore: com.example.awake.data.repository.JsonTimetableStore? = null
 ) : ViewModel() {
@@ -140,10 +152,13 @@ class TermImportViewModel(
                 }
             }
         }
-        // 登录状态用于「教务系统导入」区的去登录按钮。
+        // 登录状态用于「教务系统导入」区的去登录按钮。刚完成直连/VPN 登录时，
+        // 本地档案的名称要等首次导入课表才会更新，所以这里同时参考进程内的
+        // 教务会话：会话可用即视为已登录，不依赖本地档案名称。
         viewModelScope.launch {
             local.activeProfile.collect { profile ->
-                val loggedIn = profile?.displayName?.isNotBlank() == true && profile.displayName != "未登录"
+                val namedProfile = profile?.displayName?.isNotBlank() == true && profile.displayName != "未登录"
+                val loggedIn = auth.isAuthenticated() || namedProfile
                 _uiState.value = _uiState.value.copy(isLoggedIn = loggedIn)
             }
         }
@@ -311,9 +326,22 @@ class TermImportViewModel(
                             .distinctBy(ScutCourseDto::remoteKey)
                             .map { dto -> dto.toImportOption() }
                             .sortedWith(compareBy({ it.day.takeIf { day -> day in 1..7 } ?: 8 }, { firstPeriod(it.periodText) }, { it.name }, { it.subtitle }))
+                        // 同一门课可能有多个时段（多条选项），按主课程键统计真实“门”数。
+                        val courseCount = courses.distinctBy(ImportCourseOption::masterKey).size
+                        // 星期无法解析的课程（day 不在 1..7）默认未勾选，按“门”统计。
+                        val unresolvedCount = courses
+                            .filter { it.day !in 1..7 }
+                            .distinctBy(ImportCourseOption::masterKey)
+                            .size
+                        val status = when {
+                            courses.isEmpty() -> "该学期暂未获取到课程"
+                            unresolvedCount > 0 ->
+                                "已获取 $courseCount 门实际课程，存在 $unresolvedCount 门无法解析（已默认不勾选）"
+                            else -> "已获取 $courseCount 门实际课程（含多时段课程按一门计），请选择要导入的课程"
+                        }
                         _uiState.value = _uiState.value.copy(
                             previewingTermKey = null,
-                            status = if (courses.isEmpty()) "该学期暂未获取到课程" else "已获取 ${courses.size} 门实际课程，请选择要导入的课程",
+                            status = status,
                             terms = _uiState.value.terms.map {
                                 if (it.key == key) it.copy(selected = true, courses = courses, previewed = true, previewError = null) else it
                             }
@@ -332,6 +360,13 @@ class TermImportViewModel(
         }
     }
 
+    /** 在下拉列表点击某项：仅切换待导入区查看的焦点，不改变勾选状态；删除只能通过垃圾桶图标。 */
+    fun focusTerm(key: String) {
+        if (_uiState.value.busy) return
+        val focused = _uiState.value.terms.firstOrNull { it.key == key && it.selected } ?: return
+        _uiState.value = _uiState.value.copy(focusedTermKey = focused.key)
+    }
+
     fun toggleTerm(key: String) {
         if (_uiState.value.busy || _uiState.value.previewingTermKey != null) return
         val currentSelected = _uiState.value.terms.firstOrNull { it.key == key }?.selected == true
@@ -347,8 +382,16 @@ class TermImportViewModel(
             },
             status = null
         )
-        val selected = _uiState.value.terms.firstOrNull { it.key == key }?.selected == true
-        val term = _uiState.value.terms.firstOrNull { it.key == key }
+        val updated = _uiState.value
+        val selected = updated.terms.firstOrNull { it.key == key }?.selected == true
+        val term = updated.terms.firstOrNull { it.key == key }
+        // 选中即聚焦展示；取消选中当前聚焦项时回退到最近添加的已选项。
+        val nextFocus = when {
+            selected -> key
+            updated.focusedTermKey == key -> updated.terms.filter { it.selected }.lastOrNull()?.key
+            else -> updated.focusedTermKey
+        }
+        _uiState.value = updated.copy(focusedTermKey = nextFocus)
         if (selected && term != null && !term.previewed) previewTerm(key)
     }
 
@@ -431,11 +474,13 @@ class TermImportViewModel(
                 terms = _uiState.value.terms
                     .filterNot { it.isJson || it.isBlank }
                     .map { it.copy(selected = false) } + custom,
+                focusedTermKey = custom.key,
                 status = "已添加“$label”，覆盖模式下仅保留这一份"
             )
         } else {
             _uiState.value = _uiState.value.copy(
                 terms = _uiState.value.terms + custom,
+                focusedTermKey = custom.key,
                 status = "已添加“$label”，导入时会一起处理"
             )
         }
@@ -446,7 +491,13 @@ class TermImportViewModel(
     fun removeCustomTerm(key: String) {
         if (_uiState.value.busy) return
         jsonPayloads.remove(key)
-        _uiState.value = _uiState.value.copy(terms = _uiState.value.terms.filterNot { it.key == key })
+        val remaining = _uiState.value.terms.filterNot { it.key == key }
+        val nextFocus = if (_uiState.value.focusedTermKey == key) {
+            remaining.filter { it.selected }.lastOrNull()?.key
+        } else {
+            _uiState.value.focusedTermKey
+        }
+        _uiState.value = _uiState.value.copy(terms = remaining, focusedTermKey = nextFocus)
     }
 
     fun import(onDone: () -> Unit) {
@@ -670,11 +721,13 @@ class TermImportViewModel(
                 terms = _uiState.value.terms
                     .filterNot { it.isJson || it.isBlank }
                     .map { it.copy(selected = false) } + option,
+                focusedTermKey = option.key,
                 status = "已暂存空课表“${normalized}”（覆盖模式仅保留这一份）"
             )
         } else {
             _uiState.value = _uiState.value.copy(
                 terms = _uiState.value.terms + option,
+                focusedTermKey = option.key,
                 status = "已暂存空课表“${normalized}”，可继续添加，最后统一导入"
             )
         }
@@ -703,7 +756,9 @@ class TermImportViewModel(
                                 if (course.teacher.isNotBlank()) add(course.teacher)
                                 if (course.sections.size > 1) add("${course.sections.size} 个时段") else add("1 个时段")
                             }.joinToString(" · "),
-                            selected = true
+                            selected = true,
+                            // JSON 分享格式里每条就是一门主课程，按索引即可保证“门”数统计唯一。
+                            masterKey = "json-course-$index"
                         )
                     }
                     val option = ImportTermOption(
@@ -735,12 +790,14 @@ class TermImportViewModel(
                         terms = _uiState.value.terms
                             .filterNot { it.isJson }
                             .map { it.copy(selected = false) } + option,
+                        focusedTermKey = option.key,
                         status = "已暂存 JSON 课表“${data.meta.label}”（覆盖模式仅保留这一份）"
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(
                         busy = false,
                         terms = _uiState.value.terms + option,
+                        focusedTermKey = option.key,
                         status = "已暂存 JSON 课表“${data.meta.label}”，可继续添加，最后统一导入"
                     )
                 }
@@ -825,11 +882,12 @@ class TermImportViewModelFactory(
     private val selection: TimetableSelectionStore,
     private val remote: ScutScheduleRepository,
     private val academicTermsCache: AcademicTermsCache,
+    private val auth: ScutAuthRepository,
     private val importMode: ImportMode = ImportMode.ADD,
     private val jsonTimetableStore: com.example.awake.data.repository.JsonTimetableStore? = null
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        TermImportViewModel(local, importer, reminderCoordinator, selection, remote, academicTermsCache, importMode, jsonTimetableStore) as T
+        TermImportViewModel(local, importer, reminderCoordinator, selection, remote, academicTermsCache, auth, importMode, jsonTimetableStore) as T
 }
 
 private fun ScutCourseDto.toImportOption(): ImportCourseOption = ImportCourseOption(
@@ -843,7 +901,11 @@ private fun ScutCourseDto.toImportOption(): ImportCourseOption = ImportCourseOpt
         if (weeks.isNotBlank()) add(weeks)
         if (teacher.isNotBlank()) add(teacher)
         if (room.isNotBlank()) add(room)
-    }.joinToString(" · ")
+    }.joinToString(" · "),
+    // 星期无法解析（day 不在 1..7）的课程默认不勾选，避免把时间未知的课程导入课表；
+    // 用户仍可在列表中手动勾选。选中后导入时映射器同样会跳过星期无效的课程。
+    selected = day in 1..7,
+    masterKey = com.example.awake.domain.model.CourseIdentity.masterKey(source, name, className, teacher)
 )
 
 private fun firstPeriod(text: String): Int = Regex("\\d+").find(text)?.value?.toIntOrNull() ?: 99

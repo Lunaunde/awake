@@ -93,7 +93,7 @@ class AwakeWidgetProvider : AppWidgetProvider() {
             views.addView(R.id.widget_courses, item)
         }
         if (data.courses.size > MAX_COURSES) {
-            views.setTextViewText(R.id.widget_empty, "还有 ${data.courses.size - MAX_COURSES} 门课程 · 点击查看")
+            views.setTextViewText(R.id.widget_empty, "还有 ${data.courses.size - MAX_COURSES} 节课 · 点击查看")
         }
         manager.updateAppWidget(id, views)
     }

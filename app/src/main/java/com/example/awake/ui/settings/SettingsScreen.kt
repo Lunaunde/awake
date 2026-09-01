@@ -2,7 +2,9 @@ package com.example.awake.ui.settings
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -66,6 +68,8 @@ import com.example.awake.data.repository.ReminderCoordinator
 import com.example.awake.data.repository.ReminderSettingsStore
 import com.example.awake.data.repository.TimetableSelectionStore
 import com.example.awake.data.repository.TimetableDisplaySettingsStore
+import com.example.awake.data.update.GitHubRelease
+import com.example.awake.data.update.GitHubReleaseChecker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -95,7 +99,24 @@ fun SettingsScreen(
     var sessionStates by remember { mutableStateOf<Map<ScutAccessMode, SessionAvailability>>(emptyMap()) }
     var checkingSessions by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
+    // 更新检测：通过 GitHub Releases API 检查，纯手动触发，不自动轮询。
+    var currentVersionName by remember { mutableStateOf("") }
+    var currentVersionCode by remember { mutableStateOf(0) }
+    var updateChecking by remember { mutableStateOf(false) }
+    var updateStatus by remember { mutableStateOf<String?>(null) }
+    var latestRelease by remember { mutableStateOf<GitHubRelease?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val updateChecker = remember { GitHubReleaseChecker() }
     LaunchedEffect(Unit) {
+        val packageInfo = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }.getOrNull()
+        currentVersionName = packageInfo?.versionName ?: ""
+        currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo?.longVersionCode?.toInt() ?: 0
+        } else {
+            packageInfo?.versionCode ?: 0
+        }
         val timetableId = withContext(Dispatchers.IO) {
             selection.read() ?: local.getFirstTimetable()?.id
         }
@@ -155,6 +176,35 @@ fun SettingsScreen(
         }
     }
 
+    fun checkUpdate() {
+        if (updateChecking) return
+        scope.launch {
+            updateChecking = true
+            updateStatus = "正在检查更新…"
+            runCatching { withContext(Dispatchers.IO) { updateChecker.fetchLatestRelease() } }
+                .onSuccess { release ->
+                    latestRelease = release
+                    if (GitHubReleaseChecker.hasUpdate(release.versionCode, currentVersionCode)) {
+                        updateStatus = "发现新版本 ${release.versionName}（当前 $currentVersionName）"
+                        showUpdateDialog = true
+                    } else {
+                        updateStatus = "已是最新版本（$currentVersionName）"
+                    }
+                }
+                .onFailure { error ->
+                    updateStatus = "检查失败：${error.message ?: "网络异常"}。可手动访问 github.com/Lunaunde/awake/releases"
+                }
+            updateChecking = false
+        }
+    }
+
+    fun openInBrowser(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(Intent.createChooser(intent, "打开链接")) }
+            .onFailure { updateStatus = "无法打开浏览器：${it.message ?: "未知错误"}" }
+    }
+
     LaunchedEffect(section) {
         if (section == SettingsSection.ACCOUNT) checkSessions()
     }
@@ -202,6 +252,16 @@ fun SettingsScreen(
                         title = "账号与本地数据",
                         subtitle = "重新登录、退出登录或清除本地数据",
                         onClick = { section = SettingsSection.ACCOUNT }
+                    )
+                    Text("关于与更新", style = MaterialTheme.typography.titleMedium)
+                    SettingsOption(
+                        title = "检查更新",
+                        subtitle = if (currentVersionName.isBlank()) {
+                            "通过 GitHub Releases 检查最新版本"
+                        } else {
+                            "当前版本 $currentVersionName · 通过 GitHub Releases 检测"
+                        },
+                        onClick = { section = SettingsSection.UPDATE }
                     )
                     Text(
                         "通知和小组件只消费当前选中的本地课表；网络失败时不会覆盖旧数据。",
@@ -363,6 +423,47 @@ fun SettingsScreen(
                         Text("清除全部本地数据")
                     }
                 }
+
+                SettingsSection.UPDATE -> {
+                    Text("检查更新", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "通过 GitHub Releases 检测最新版本（仓库：Lunaunde/awake）。国内网络访问 GitHub 可能不稳定，检查失败时可手动到 Releases 页面查看。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("当前版本 $currentVersionName", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                updateStatus ?: "点击下方按钮检查是否有新版本",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(
+                                onClick = ::checkUpdate,
+                                enabled = !updateChecking,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (updateChecking) "正在检查…" else "检查更新")
+                            }
+                        }
+                    }
+                    latestRelease?.let { release ->
+                        if (GitHubReleaseChecker.hasUpdate(release.versionCode, currentVersionCode) && !showUpdateDialog) {
+                            OutlinedButton(
+                                onClick = { showUpdateDialog = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("发现新版本 ${release.versionName} · 查看更新内容")
+                            }
+                        }
+                    }
+                    TextButton(onClick = { openInBrowser("https://github.com/Lunaunde/awake/releases") }) {
+                        Text("在浏览器打开 GitHub Releases 页面")
+                    }
+                }
             }
             status?.let {
                 Text(it, color = MaterialTheme.colorScheme.primary)
@@ -394,6 +495,31 @@ fun SettingsScreen(
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) { Text("确认清除") }
+            }
+        )
+    }
+
+    latestRelease?.takeIf { showUpdateDialog }?.let { release ->
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text("发现新版本 ${release.versionName}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("当前版本：$currentVersionName")
+                    Text(
+                        release.notes,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            dismissButton = { TextButton(onClick = { showUpdateDialog = false }) { Text("稍后") } },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateDialog = false
+                        openInBrowser(release.apkUrl ?: release.pageUrl)
+                    }
+                ) { Text("前往下载") }
             }
         )
     }
@@ -477,7 +603,8 @@ private enum class SettingsSection(val title: String) {
     REMINDERS("课前提醒"),
     PERIODS("节次时间"),
     DISPLAY("课表显示"),
-    ACCOUNT("账号与本地数据")
+    ACCOUNT("账号与本地数据"),
+    UPDATE("检查更新")
 }
 
 @Composable

@@ -19,9 +19,11 @@ class LoginUseCase(
         accessMode: ScutAccessMode = ScutAccessMode.DIRECT,
         onBlocked: (String) -> Unit,
         onFailure: (String) -> Unit = {},
+        onNetworkFailure: (String) -> Unit = {},
         onReady: () -> Unit = {},
         onSubmitting: () -> Unit = {},
         onVerificationRequired: () -> Unit = {},
+        onAutoNavigating: () -> Unit = {},
         onAcademicTerms: (List<com.example.awake.data.remote.RemoteAcademicYear>) -> Unit = {},
         onAcademicTermsFailure: (String) -> Unit = {},
         onAuthenticated: () -> Unit = {}
@@ -30,9 +32,11 @@ class LoginUseCase(
         accessMode = accessMode,
         onBlocked = onBlocked,
         onFailure = onFailure,
+        onNetworkFailure = onNetworkFailure,
         onReady = onReady,
         onSubmitting = onSubmitting,
         onVerificationRequired = onVerificationRequired,
+        onAutoNavigating = onAutoNavigating,
         onAcademicTerms = onAcademicTerms,
         onAcademicTermsFailure = onAcademicTermsFailure,
         onAuthenticated = onAuthenticated

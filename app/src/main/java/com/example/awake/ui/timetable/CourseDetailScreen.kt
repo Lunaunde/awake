@@ -64,9 +64,22 @@ fun CourseDetailScreen(
     val colorChoices = remember { com.example.awake.domain.model.DefaultCourseColors }
 
     Scaffold(topBar = {
-        CenterAlignedTopAppBar(title = { Text("课程详情") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
-        })
+        CenterAlignedTopAppBar(
+            title = { Text("课程详情") },
+            navigationIcon = {
+                IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "返回") }
+            },
+            actions = {
+                // 名称/教师修改的保存入口固定在右上角，不再占用主内容区。
+                TextButton(
+                    onClick = {
+                        original?.let { current ->
+                            viewModel.saveMaster(current.copy(name = name.trim(), teacher = teacher.trim())) {}
+                        }
+                    }
+                ) { Text("保存") }
+            }
+        )
     }) { padding ->
         val current = original
         if (current == null) {
@@ -167,15 +180,10 @@ fun CourseDetailScreen(
                 )
             }
             Text(
-                "色点/随机/RGB 输入都会立即保存；「保存课程信息」用于保存名称与教师。颜色随主课程生效，课表所有时段一起变。",
+                "色点/随机/RGB 输入都会立即保存；「右上角保存」用于保存名称与教师。颜色随主课程生效，课表所有时段一起变。",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            OutlinedButton(
-                onClick = { viewModel.saveMaster(current.copy(name = name.trim(), teacher = teacher.trim())) {} },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("保存课程信息") }
 
             Text("上课时段（${sections.size}）", style = MaterialTheme.typography.titleMedium)
             sections.forEach { section ->

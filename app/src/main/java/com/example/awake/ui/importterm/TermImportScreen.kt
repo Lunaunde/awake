@@ -245,48 +245,63 @@ fun TermImportScreen(
                         expanded = termMenuExpanded,
                         enabled = !state.busy && !state.loadingAcademicYears,
                         onExpandedChange = { termMenuExpanded = it },
-                        onToggle = viewModel::toggleTerm,
+                        onSelect = viewModel::focusTerm,
                         onRemove = viewModel::removeCustomTerm,
                         title = "待导入课表"
                     )
                 }
                 item {
                     val selectedTerms = state.terms.filter { it.selected }
+                    // 批量导入时底部展示所有已选课表的课程总和（按“门”统计），
+                    // 空课表无课程，JSON/教务按已勾选的课程统计。
+                    val totalPendingCourses = selectedTerms.sumOf { term ->
+                        if (term.isBlank) 0 else term.courses
+                            .filter { it.selected }
+                            .distinctBy { it.masterKey }
+                            .size
+                    }
                     Text(
                         when {
                             state.mode == ImportMode.OVERWRITE ->
                                 "覆盖模式：只保留一份待导入课表，导入时将替换当前课表" +
                                     (state.overwriteTargetLabel?.let { "“$it”" } ?: "") +
-                                    "；已保留 ${selectedTerms.size} 份"
-                            else -> "已获取 ${selectedTerms.size} 个学期课表；可继续查询并添加其他学期"
+                                    "；已保留 ${selectedTerms.size} 份 · 共 $totalPendingCourses 门课程"
+                            else -> "已选 ${selectedTerms.size} 个学期课表 · 共 $totalPendingCourses 门课程；可继续查询并添加其他学期"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                items(state.terms.filter { it.selected }, key = { "selected-${it.key}" }) { term ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SelectedTermEditor(
-                            term = term,
-                            enabled = !state.busy && state.previewingTermKey == null,
-                            onLabelChange = { viewModel.setTermLabel(term.key, it) },
-                            onStartDateChange = { viewModel.setTermStartDate(term.key, it) },
-                            onDelete = { viewModel.removeCustomTerm(term.key) }
-                        )
-                        if (term.isBlank) {
-                            Text(
-                                "空课表：无需选择课程，导入即创建/清空课表。",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            CourseSelectionSection(
+                // 导入多个课表时只展示聚焦选中的一份（默认最近添加的），
+                // 通过上方列表切换查看，避免一次性堆叠全部编辑卡片。
+                val focusedTerm = state.terms.firstOrNull { it.key == state.focusedTermKey }
+                    ?.takeIf { it.selected }
+                    ?: state.terms.filter { it.selected }.lastOrNull()
+                focusedTerm?.let { term ->
+                    item(key = "selected-${term.key}") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SelectedTermEditor(
                                 term = term,
                                 enabled = !state.busy && state.previewingTermKey == null,
-                                onRetry = { viewModel.previewTerm(term.key) },
-                                onToggleAll = { viewModel.toggleAllCourses(term.key) },
-                                onToggleCourse = { viewModel.toggleCourse(term.key, it) }
+                                onLabelChange = { viewModel.setTermLabel(term.key, it) },
+                                onStartDateChange = { viewModel.setTermStartDate(term.key, it) },
+                                onDelete = { viewModel.removeCustomTerm(term.key) }
                             )
+                            if (term.isBlank) {
+                                Text(
+                                    "空课表：无需选择课程，导入即创建/清空课表。",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                CourseSelectionSection(
+                                    term = term,
+                                    enabled = !state.busy && state.previewingTermKey == null,
+                                    onRetry = { viewModel.previewTerm(term.key) },
+                                    onToggleAll = { viewModel.toggleAllCourses(term.key) },
+                                    onToggleCourse = { viewModel.toggleCourse(term.key, it) }
+                                )
+                            }
                         }
                     }
                 }
@@ -529,7 +544,7 @@ private fun TermDropdownPicker(
     expanded: Boolean,
     enabled: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onToggle: (String) -> Unit,
+    onSelect: (String) -> Unit,
     onRemove: (String) -> Unit,
     title: String = "选择课表"
 ) {
@@ -612,11 +627,12 @@ private fun TermDropdownPicker(
                                             }
                                         },
                                         trailingIcon = {
+                                            // 只有垃圾桶图标触发删除；点击行其余位置只切换查看焦点。
                                             IconButton(onClick = { onRemove(term.key) }) {
                                                 Icon(Icons.Default.DeleteOutline, contentDescription = "删除暂存课表")
                                             }
                                         },
-                                        onClick = { onToggle(term.key) }
+                                        onClick = { onSelect(term.key); onExpandedChange(false) }
                                     )
                                 }
                             }
@@ -626,7 +642,7 @@ private fun TermDropdownPicker(
             }
         }
         Text(
-            if (selected.isEmpty()) "查询并获取实际课程后，课表会出现在这里" else "点击展开，可移除已暂存的课表",
+            if (selected.isEmpty()) "查询并获取实际课程后，课表会出现在这里" else "点击展开可切换查看或移除已暂存的课表",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -686,6 +702,14 @@ private fun CourseSelectionSection(
     onToggleCourse: (String) -> Unit
 ) {
     var expanded by remember(term.key) { mutableStateOf(false) }
+    // 教务返回同一门课的多个时段时会有多条选项；按主课程键统计“门”数，
+    // 避免把“时段条数（List 数量）”误当成课程数量。
+    val totalMasters = term.courses.distinctBy { it.masterKey }.size
+    val selectedMasters = term.courses.filter { it.selected }.distinctBy { it.masterKey }
+    // 星期无法解析的课程（day 不在 1..7）默认不勾选，这里按“门”提示数量。
+    val unresolvedMasters = term.courses
+        .filter { it.day !in 1..7 }
+        .distinctBy { it.masterKey }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
@@ -699,7 +723,7 @@ private fun CourseSelectionSection(
                         when {
                             term.previewError != null -> "获取失败"
                             !term.previewed -> "正在获取教务系统数据…"
-                            else -> "已选 ${term.courses.count { it.selected }} / ${term.courses.size} 门"
+                            else -> "已选 ${selectedMasters.size} / $totalMasters 门"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -711,6 +735,20 @@ private fun CourseSelectionSection(
                     }
                 } else if (term.previewError != null) {
                     TextButton(onClick = onRetry, enabled = enabled) { Text("重试") }
+                }
+            }
+            if (term.previewed && unresolvedMasters.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        "存在 ${unresolvedMasters.size} 门无法解析的课程（已默认不勾选，可手动勾选）",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
                 }
             }
             when {
@@ -744,15 +782,15 @@ private fun CourseSelectionSection(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                when (val count = term.courses.count { it.selected }) {
+                                when (val count = selectedMasters.size) {
                                     0 -> "请选择课程"
-                                    1 -> term.courses.first { it.selected }.name
+                                    1 -> selectedMasters.first().name
                                     else -> "已选择 $count 门课程"
                                 },
                                 modifier = Modifier.weight(1f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                color = if (term.courses.any { it.selected }) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (selectedMasters.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Icon(
                                 if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,

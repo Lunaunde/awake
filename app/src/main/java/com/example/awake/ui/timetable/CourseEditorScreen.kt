@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -47,6 +48,18 @@ fun CourseEditorScreen(viewModel: CourseEditorViewModel, onBack: () -> Unit, onD
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    TextButton(
+                        onClick = { viewModel.save(onDone) },
+                        enabled = !state.busy
+                    ) {
+                        if (state.busy) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("保存")
+                        }
                     }
                 }
             )
@@ -121,13 +134,6 @@ fun CourseEditorScreen(viewModel: CourseEditorViewModel, onBack: () -> Unit, onD
                 )
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(
-                onClick = { viewModel.save(onDone) },
-                enabled = !state.busy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (state.busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("保存")
-            }
         }
     }
 }
