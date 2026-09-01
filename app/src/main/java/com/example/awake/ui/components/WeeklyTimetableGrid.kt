@@ -40,7 +40,7 @@ import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.sp
-import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.CourseSlotEntity
 import com.example.awake.data.local.PeriodConfigDefaults
 import com.example.awake.data.local.PeriodConfigEntity
 import com.example.awake.domain.parser.WeekExpressionParser
@@ -57,14 +57,14 @@ private val PeriodCount = PeriodConfigDefaults.periodCount
 /** 紧凑周视图：7 个星期列始终铺满屏幕，避免默认横向滚动导致一次只能看见 2~3 天。 */
 @Composable
 fun WeeklyTimetableGrid(
-    courses: List<CourseEntity>,
+    courses: List<CourseSlotEntity>,
     currentWeek: Int,
-    currentWeekCourseIds: Set<Long> = courses.map { it.id }.toSet(),
+    currentWeekCourseIds: Set<Long> = courses.map { it.sectionId }.toSet(),
     totalWeeks: Int = 30,
-    previousCourses: List<CourseEntity> = emptyList(),
+    previousCourses: List<CourseSlotEntity> = emptyList(),
     previousWeek: Int = currentWeek - 1,
     previousWeekCourseIds: Set<Long> = emptySet(),
-    nextCourses: List<CourseEntity> = emptyList(),
+    nextCourses: List<CourseSlotEntity> = emptyList(),
     nextWeek: Int = currentWeek + 1,
     nextWeekCourseIds: Set<Long> = emptySet(),
     periodConfigs: List<PeriodConfigEntity> = emptyList(),
@@ -79,7 +79,7 @@ fun WeeklyTimetableGrid(
     val density = LocalDensity.current
     val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
     val periodByNumber = periodConfigs.associateBy { it.period }
-    val paletteByName = remember(courses, previousCourses, nextCourses) {
+    val paletteByCourse = remember(courses, previousCourses, nextCourses) {
         buildCoursePaletteMap(courses + previousCourses + nextCourses)
     }
 
@@ -92,13 +92,14 @@ fun WeeklyTimetableGrid(
     ) {
         // 课表区域由外层 weight 提供可用高度。优先把 11 个节次均匀拉伸到视口底部，
         // 这样小屏仍保持紧凑，大屏也不会在第 11 节之后留下大块空白；内容超出时仍可上下滚动。
-        val rowHeight = if (maxHeight != Dp.Infinity && maxHeight > 0.dp) {
-            ((maxHeight - HeaderHeight - 8.dp) / PeriodCount)
+        // 显式引用 BoxWithConstraintsScope，规避 UnusedBoxWithConstraintsScope 的 lint 误报。
+        val rowHeight = if (this@BoxWithConstraints.maxHeight != Dp.Infinity && this@BoxWithConstraints.maxHeight > 0.dp) {
+            ((this@BoxWithConstraints.maxHeight - HeaderHeight - 8.dp) / PeriodCount)
                 .coerceIn(MinRowHeight, MaxRowHeight)
         } else {
             DefaultRowHeight
         }
-        val pageWidth = maxWidth
+        val pageWidth = this@BoxWithConstraints.maxWidth
         val pageWidthPx = with(density) { pageWidth.toPx() }
         val gridHeight = HeaderHeight + rowHeight * PeriodCount
         Box(
@@ -172,7 +173,7 @@ fun WeeklyTimetableGrid(
                     rowHeight = rowHeight,
                     periodByNumber = periodByNumber,
                     dayNames = dayNames,
-                    paletteByName = paletteByName,
+                    paletteByCourse = paletteByCourse,
                     onCourseClick = onCourseClick,
                     onEmptyClick = onEmptyClick
                 )
@@ -188,7 +189,7 @@ fun WeeklyTimetableGrid(
                     rowHeight = rowHeight,
                     periodByNumber = periodByNumber,
                     dayNames = dayNames,
-                    paletteByName = paletteByName,
+                    paletteByCourse = paletteByCourse,
                     onCourseClick = onCourseClick,
                     onEmptyClick = onEmptyClick
                 )
@@ -204,32 +205,32 @@ fun WeeklyTimetableGrid(
                     rowHeight = rowHeight,
                     periodByNumber = periodByNumber,
                     dayNames = dayNames,
-                    paletteByName = paletteByName,
+                    paletteByCourse = paletteByCourse,
                     onCourseClick = onCourseClick,
                     onEmptyClick = onEmptyClick
                 )
             }
         }
     }
-}
+    }
 
 }
 @Composable
 private fun WeekGridPage(
     modifier: Modifier,
-    courses: List<CourseEntity>,
+    courses: List<CourseSlotEntity>,
     currentWeek: Int,
     currentWeekCourseIds: Set<Long>,
     totalWeeks: Int,
     rowHeight: Dp,
     periodByNumber: Map<Int, PeriodConfigEntity>,
     dayNames: List<String>,
-    paletteByName: Map<String, CoursePalette>,
+    paletteByCourse: Map<Long, CoursePalette>,
     onCourseClick: (Long) -> Unit,
     onEmptyClick: (dayOfWeek: Int, startPeriod: Int) -> Unit
 ) {
     BoxWithConstraints(modifier = modifier) {
-        val dayColumnWidth = ((maxWidth - TimeColumnWidth) / dayNames.size).coerceAtLeast(1.dp)
+        val dayColumnWidth = ((this@BoxWithConstraints.maxWidth - TimeColumnWidth) / dayNames.size).coerceAtLeast(1.dp)
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.width(TimeColumnWidth)) {
                 Box(
@@ -326,13 +327,13 @@ private fun WeekGridPage(
                                     course = positioned.course,
                                     week = currentWeek,
                                     totalWeeks = totalWeeks,
-                                    fallbackCourseIds = currentWeekCourseIds
+                                    fallbackSectionIds = currentWeekCourseIds
                                 ),
                                 currentWeek = currentWeek,
                                 totalWeeks = totalWeeks,
-                                palette = paletteByName[positioned.course.name.trim().ifBlank { "未命名" }]
-                                    ?: coursePaletteFor(positioned.course.name),
-                                onClick = { onCourseClick(positioned.course.id) }
+                                palette = paletteByCourse[positioned.course.courseId]
+                                    ?: paletteForAccent(positioned.course.color),
+                                onClick = { onCourseClick(positioned.course.courseId) }
                             )
                         }
                     }
@@ -343,23 +344,23 @@ private fun WeekGridPage(
 }
 
 /**
- * 同一天、同一节次如果只是不同周次的同一组课程，不同时显示多个版本。
+ * 同一天、同一节次如果只是不同周次的同一组时段，不同时显示多个版本。
  * 例如第 4～13 周和第 14 周的同一门课：第 1～13 周只显示前者，
- * 到第 14 周前者结课后，再显示第 14 周的课程。
+ * 到第 14 周前者结课后，再显示第 14 周的时段。
  */
 private fun selectVisibleVariants(
-    courses: List<CourseEntity>,
+    courses: List<CourseSlotEntity>,
     currentWeek: Int
-): List<CourseEntity> = courses.filter { course ->
+): List<CourseSlotEntity> = courses.filter { course ->
     courses.none { other ->
-        other.id != course.id &&
+        other.sectionId != course.sectionId &&
             periodsOverlap(other, course) &&
             preferredVariant(other, course) &&
             latestWeek(other.rawWeekText) >= currentWeek
     }
 }
 
-private fun preferredVariant(other: CourseEntity, course: CourseEntity): Boolean {
+private fun preferredVariant(other: CourseSlotEntity, course: CourseSlotEntity): Boolean {
     val otherStart = earliestWeek(other.rawWeekText)
     val courseStart = earliestWeek(course.rawWeekText)
     return otherStart < courseStart ||
@@ -367,22 +368,22 @@ private fun preferredVariant(other: CourseEntity, course: CourseEntity): Boolean
 }
 
 private fun isCourseInWeek(
-    course: CourseEntity,
+    course: CourseSlotEntity,
     week: Int,
     totalWeeks: Int,
-    fallbackCourseIds: Set<Long>
+    fallbackSectionIds: Set<Long>
 ): Boolean {
     // rawWeekText 是导入结果的唯一可解释来源。优先重新解析它，避免旧版本
     // 或异步迁移留下的 course_weeks 关系把开课前课程误判成“本周”。
     val parsedWeeks = WeekExpressionParser.parse(course.rawWeekText, totalWeeks.coerceAtLeast(1)).weeks
-    return if (parsedWeeks.isNotEmpty()) week in parsedWeeks else course.id in fallbackCourseIds
+    return if (parsedWeeks.isNotEmpty()) week in parsedWeeks else course.sectionId in fallbackSectionIds
 }
 
-private fun periodsOverlap(first: CourseEntity, second: CourseEntity): Boolean =
+private fun periodsOverlap(first: CourseSlotEntity, second: CourseSlotEntity): Boolean =
     first.startPeriod <= second.endPeriod && second.startPeriod <= first.endPeriod
 
 private data class PositionedCourse(
-    val course: CourseEntity,
+    val course: CourseSlotEntity,
     val laneIndex: Int,
     val laneCount: Int
 )
@@ -391,11 +392,11 @@ private data class PositionedCourse(
  * 把同一天中节次重叠的课程分到不同横向列，避免不同周次的课程互相覆盖。
  * 同一组内按最早开课周次排序，最早开始的课程放在左侧第一列。
  */
-private fun layoutDayCourses(courses: List<CourseEntity>): List<PositionedCourse> {
+private fun layoutDayCourses(courses: List<CourseSlotEntity>): List<PositionedCourse> {
     if (courses.isEmpty()) return emptyList()
 
     val ordered = courses.sortedWith(
-        compareBy<CourseEntity>(
+        compareBy<CourseSlotEntity>(
             { it.startPeriod },
             { earliestWeek(it.rawWeekText) },
             { it.endPeriod },
@@ -403,13 +404,13 @@ private fun layoutDayCourses(courses: List<CourseEntity>): List<PositionedCourse
         )
     )
     val result = mutableListOf<PositionedCourse>()
-    var group = mutableListOf<CourseEntity>()
+    var group = mutableListOf<CourseSlotEntity>()
     var groupEnd = 0
 
     fun flushGroup() {
         if (group.isEmpty()) return
         val laneEnds = mutableListOf<Int>()
-        val assignments = mutableListOf<Pair<CourseEntity, Int>>()
+        val assignments = mutableListOf<Pair<CourseSlotEntity, Int>>()
         group.forEach { course ->
             val lane = laneEnds.indexOfFirst { endPeriod -> endPeriod < course.startPeriod }
                 .let { existing ->
@@ -460,6 +461,3 @@ private fun LegendItem(color: Color, text: String) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-
-
-

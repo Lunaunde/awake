@@ -1,6 +1,8 @@
 package com.example.awake.domain.usecase
 
 import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.CourseSectionEntity
+import com.example.awake.data.local.CourseSlotEntity
 import com.example.awake.data.local.TimetableEntity
 import com.example.awake.data.repository.LocalTimetableRepository
 import com.example.awake.domain.model.Profile
@@ -12,8 +14,13 @@ class ObserveTimetableUseCase(private val local: LocalTimetableRepository) {
 
     fun timetables(profileId: Long): Flow<List<TimetableEntity>> = local.observeTimetables(profileId)
     fun timetable(timetableId: Long): Flow<TimetableEntity?> = local.observeTimetable(timetableId)
-    fun courses(timetableId: Long, week: Int): Flow<List<CourseEntity>> = local.observeCourses(timetableId, week)
-    fun coursesThroughEnd(timetableId: Long, week: Int): Flow<List<CourseEntity>> = local.observeCoursesThroughEnd(timetableId, week)
-    fun allCourses(timetableId: Long): Flow<List<CourseEntity>> = local.observeAllCourses(timetableId)
+
+    /** 周视图消费的扁平时段行：一门课的一个时段占一行。 */
+    fun courses(timetableId: Long, week: Int): Flow<List<CourseSlotEntity>> = local.observeCourses(timetableId, week)
+    fun coursesThroughEnd(timetableId: Long, week: Int): Flow<List<CourseSlotEntity>> = local.observeCoursesThroughEnd(timetableId, week)
+
+    /** 课程详情按主记录读取，并展示其全部时段。 */
     fun course(courseId: Long): Flow<CourseEntity?> = local.observeCourse(courseId)
+    fun sections(courseId: Long): Flow<List<CourseSectionEntity>> = local.observeSections(courseId)
+    fun slot(sectionId: Long): Flow<CourseSlotEntity?> = local.observeSlot(sectionId)
 }

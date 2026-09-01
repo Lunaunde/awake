@@ -14,6 +14,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,10 +30,20 @@ import com.example.awake.data.local.PeriodConfigDefaults
 @Composable
 fun CourseEditorScreen(viewModel: CourseEditorViewModel, onBack: () -> Unit, onDone: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val title = when {
+        state.sectionId > 0 -> "编辑时段"
+        state.masterId > 0 -> "添加时段"
+        else -> "添加课程"
+    }
+    val hint = when {
+        state.sectionId > 0 -> "修改会更新该课程的主信息和这个时段；被修改的同步时段不会被下次同步无提示覆盖。"
+        state.masterId > 0 -> "为当前课程添加一个时间/地点不同的时段。"
+        else -> "添加到当前课表的本地课程；同名同教师的课程会自动归并入同一门课。"
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("添加课程") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
@@ -47,7 +59,7 @@ fun CourseEditorScreen(viewModel: CourseEditorViewModel, onBack: () -> Unit, onD
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("添加到当前课表的本地课程，不会被网络同步覆盖。")
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::setName,
@@ -90,20 +102,31 @@ fun CourseEditorScreen(viewModel: CourseEditorViewModel, onBack: () -> Unit, onD
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
-            OutlinedTextField(
-                value = state.weeks,
-                onValueChange = viewModel::setWeeks,
-                label = { Text("周次，例如 1-16、单周") },
+            OutlinedButton(
+                onClick = { viewModel.setWeekDialogVisible(true) },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            state.error?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    "上课周次：${state.weeks}（点击选择）",
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            if (state.showWeekDialog) {
+                com.example.awake.ui.components.WeekPickerDialog(
+                    initial = viewModel.selectedWeeks(),
+                    onDismiss = { viewModel.setWeekDialogVisible(false) },
+                    onConfirm = viewModel::applyWeekSelection
+                )
+            }
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
                 onClick = { viewModel.save(onDone) },
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (state.busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("保存课程")
+                if (state.busy) CircularProgressIndicator(strokeWidth = 2.dp) else Text("保存")
             }
         }
     }

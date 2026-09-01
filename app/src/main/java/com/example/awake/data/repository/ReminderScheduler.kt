@@ -1,6 +1,6 @@
 package com.example.awake.data.repository
 
-import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.CourseSlotEntity
 import com.example.awake.data.local.PeriodConfigEntity
 import com.example.awake.data.local.TimetableEntity
 import java.time.Clock
@@ -10,7 +10,8 @@ import java.time.LocalTime
 
 /** 提醒调度抽象。Android 端由 AlarmManager 实现，纯 JVM 测试可用 FakeReminderScheduler。 */
 data class Reminder(
-    val courseId: Long,
+    /** 触发提醒的时段 id；一个课程主记录的每个时段各自独立提醒。 */
+    val sectionId: Long,
     val triggerAt: LocalDateTime,
     val minutesBefore: Int,
     val timetableId: Long = 0L
@@ -34,7 +35,7 @@ class FakeReminderScheduler : ReminderScheduler {
 
 object ReminderTimeCalculator {
     fun calculate(
-        course: CourseEntity,
+        slot: CourseSlotEntity,
         date: LocalDate,
         periodStart: LocalTime,
         minutesBefore: Int,
@@ -42,18 +43,18 @@ object ReminderTimeCalculator {
     ): Reminder? {
         val start = LocalDateTime.of(date, periodStart).minusMinutes(minutesBefore.toLong())
         return if (start.isAfter(LocalDateTime.now(clock))) {
-            Reminder(course.id, start, minutesBefore, course.timetableId)
+            Reminder(slot.sectionId, start, minutesBefore, slot.timetableId)
         } else {
             null
         }
     }
 }
 
-/** 将一个学期的本地课程展开为未来的系统提醒。 */
+/** 将一个学期的本地课程时段展开为未来的系统提醒。 */
 object ReminderPlanner {
     fun plan(
         timetable: TimetableEntity,
-        courses: List<CourseEntity>,
+        slots: List<CourseSlotEntity>,
         periodConfigs: List<PeriodConfigEntity>,
         minutesBefore: Int,
         clock: Clock = Clock.systemDefaultZone()
@@ -62,19 +63,19 @@ object ReminderPlanner {
         val periods = periodConfigs.associateBy { it.period }
         val maxWeek = timetable.totalWeeks.coerceIn(1, 60)
 
-        return courses.flatMap { course ->
-            val periodStart = periods[course.startPeriod]?.startTime?.parseLocalTime()
+        return slots.flatMap { slot ->
+            val periodStart = periods[slot.startPeriod]?.startTime?.parseLocalTime()
                 ?: return@flatMap emptyList()
             val weeks = com.example.awake.domain.parser.WeekExpressionParser
-                .parse(course.rawWeekText, maxWeek)
+                .parse(slot.rawWeekText, maxWeek)
                 .weeks
             weeks.mapNotNull { week ->
                 val date = startDate
                     .plusWeeks((week - 1).toLong())
-                    .plusDays((course.dayOfWeek - 1).toLong())
-                ReminderTimeCalculator.calculate(course, date, periodStart, minutesBefore, clock)
+                    .plusDays((slot.dayOfWeek - 1).toLong())
+                ReminderTimeCalculator.calculate(slot, date, periodStart, minutesBefore, clock)
             }
-        }.distinctBy { Triple(it.courseId, it.triggerAt, it.minutesBefore) }
+        }.distinctBy { Triple(it.sectionId, it.triggerAt, it.minutesBefore) }
             .sortedBy { it.triggerAt }
     }
 
@@ -110,8 +111,8 @@ class ReminderCoordinator(
         val timetable = local.getTimetableOrNull(timetableId) ?: return
         val reminders = ReminderPlanner.plan(
             timetable = timetable,
-            courses = local.getAllCourses(timetable.id),
-            periodConfigs = local.getPeriodConfigs(),
+            slots = local.getAllSlots(timetable.id),
+            periodConfigs = local.getPeriodConfigsFor(timetable.id),
             minutesBefore = reminderSettings.minutesBefore
         )
         scheduler.schedule(reminders)

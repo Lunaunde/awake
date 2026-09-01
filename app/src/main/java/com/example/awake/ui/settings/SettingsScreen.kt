@@ -2,7 +2,6 @@ package com.example.awake.ui.settings
 
 import android.Manifest
 import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.ComponentActivity
@@ -55,7 +54,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
-import com.example.awake.data.export.IcsExporter
 import com.example.awake.data.local.PeriodConfigEntity
 import com.example.awake.data.notification.NotificationChannels
 import com.example.awake.data.remote.ScutAuthRepository
@@ -71,9 +69,6 @@ import com.example.awake.data.repository.TimetableDisplaySettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,36 +89,20 @@ fun SettingsScreen(
     var reminderEnabled by remember { mutableStateOf(initial.enabled) }
     var minutesBefore by remember { mutableStateOf(initial.minutesBefore) }
     var periodConfigs by remember { mutableStateOf<List<PeriodConfigEntity>>(emptyList()) }
+    // 节次时间跟随当前选中课表：0 表示全局默认（该课表还没有独立配置时读写全局值）。
+    var periodTimetableId by remember { mutableStateOf(0L) }
     var status by remember { mutableStateOf<String?>(null) }
     var sessionStates by remember { mutableStateOf<Map<ScutAccessMode, SessionAvailability>>(emptyMap()) }
     var checkingSessions by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        periodConfigs = withContext(Dispatchers.IO) { local.getPeriodConfigs() }
-    }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
-    var pendingFileName by remember { mutableStateOf("awake-timetable.ics") }
-    val scope = rememberCoroutineScope()
-    val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/calendar")
-    ) { uri ->
-        val content = pendingExport
-        if (uri == null || content == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use { output ->
-                        output.write(content.toByteArray(Charsets.UTF_8))
-                    } ?: error("无法打开目标文件")
-                }
-            }.onSuccess {
-                status = "已保存 $pendingFileName"
-            }.onFailure { error ->
-                status = "保存失败：${error.message ?: "未知错误"}"
-            }
-            pendingExport = null
+        val timetableId = withContext(Dispatchers.IO) {
+            selection.read() ?: local.getFirstTimetable()?.id
         }
+        periodTimetableId = timetableId ?: 0L
+        periodConfigs = withContext(Dispatchers.IO) { local.getPeriodConfigsFor(periodTimetableId) }
     }
+    val scope = rememberCoroutineScope()
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -155,52 +134,6 @@ fun SettingsScreen(
             store.setEnabled(true)
             scope.launch { reminderCoordinator.rescheduleSelected() }
             status = "课前提醒已开启"
-        }
-    }
-
-    suspend fun loadCurrentIcs(): Pair<String, String>? {
-        val timetable = selection.read()?.let { local.getTimetableOrNull(it) } ?: local.getFirstTimetable()
-        if (timetable == null) {
-            status = "当前没有可导出的本地课表"
-            return null
-        }
-        val exportTimetable = if (timetable.startDate.isNullOrBlank() && timetable.label.contains("演示")) {
-            timetable.copy(
-                startDate = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY)).toString()
-            ).also { local.updateTimetable(it) }
-        } else timetable
-        if (exportTimetable.startDate.isNullOrBlank()) {
-            status = "当前课表缺少学期第一周日期，暂不能导出日历"
-            return null
-        }
-        val ics = IcsExporter.export(
-            timetable = exportTimetable,
-            courses = local.getAllCourses(timetable.id),
-            periodConfigs = local.getPeriodConfigs()
-        )
-        val safeLabel = exportTimetable.label.replace(Regex("[^\\p{L}\\p{N}._-]+"), "_").trim('_').ifBlank { "awake-timetable" }
-        return ics to "$safeLabel.ics"
-    }
-
-    fun shareCurrentIcs() {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) { loadCurrentIcs() } ?: return@launch
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/calendar"
-                putExtra(Intent.EXTRA_SUBJECT, result.second.removeSuffix(".ics"))
-                putExtra(Intent.EXTRA_TEXT, result.first)
-            }
-            context.startActivity(Intent.createChooser(send, "分享课表日历"))
-            status = "已打开系统分享面板"
-        }
-    }
-
-    fun saveCurrentIcs() {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) { loadCurrentIcs() } ?: return@launch
-            pendingExport = result.first
-            pendingFileName = result.second
-            saveLauncher.launch(result.second)
         }
     }
 
@@ -264,11 +197,6 @@ fun SettingsScreen(
                         subtitle = if (showOtherWeeks) "非本周课程半透明显示 · 已开启" else "只显示本周课程 · 已关闭",
                         onClick = { section = SettingsSection.DISPLAY }
                     )
-                    SettingsOption(
-                        title = "日历导出",
-                        subtitle = "分享或保存当前选中的本地课表",
-                        onClick = { section = SettingsSection.CALENDAR }
-                    )
                     Text("教务账号和数据", style = MaterialTheme.typography.titleMedium)
                     SettingsOption(
                         title = "账号与本地数据",
@@ -276,7 +204,7 @@ fun SettingsScreen(
                         onClick = { section = SettingsSection.ACCOUNT }
                     )
                     Text(
-                        "课表导出、通知和小组件只消费当前选中的本地课表；网络失败时不会覆盖旧数据。",
+                        "通知和小组件只消费当前选中的本地课表；网络失败时不会覆盖旧数据。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -328,7 +256,7 @@ fun SettingsScreen(
                 SettingsSection.PERIODS -> {
                     Text("节次时间", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "时间会显示在课表左侧节次栏，也用于提醒和日历导出。请使用 HH:mm 格式。",
+                        "时间会显示在课表左侧节次栏，也用于提醒和日历导出。配置随当前课表独立保存，请使用 HH:mm 格式。",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     periodConfigs.forEach { config ->
@@ -366,8 +294,11 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch {
                                 runCatching {
-                                    withContext(Dispatchers.IO) { local.savePeriodConfigs(periodConfigs) }
+                                    withContext(Dispatchers.IO) {
+                                        local.savePeriodConfigs(periodTimetableId, periodConfigs)
+                                    }
                                 }.onSuccess {
+                                    withContext(Dispatchers.IO) { reminderCoordinator.rescheduleSelected() }
                                     status = "节次时间已保存"
                                 }.onFailure { error ->
                                     status = error.message ?: "节次时间保存失败"
@@ -398,18 +329,6 @@ fun SettingsScreen(
                                 status = if (enabled) "已开启非本周课程半透明显示" else "已关闭非本周课程显示"
                             }
                         )
-                    }
-                }
-
-                SettingsSection.CALENDAR -> {
-                    Text("日历导出", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "只导出当前选中的本地课表，不会上传到服务器。",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = ::shareCurrentIcs, modifier = Modifier.weight(1f)) { Text("系统分享") }
-                        Button(onClick = ::saveCurrentIcs, modifier = Modifier.weight(1f)) { Text("保存 .ics") }
                     }
                 }
 
@@ -558,7 +477,6 @@ private enum class SettingsSection(val title: String) {
     REMINDERS("课前提醒"),
     PERIODS("节次时间"),
     DISPLAY("课表显示"),
-    CALENDAR("日历导出"),
     ACCOUNT("账号与本地数据")
 }
 

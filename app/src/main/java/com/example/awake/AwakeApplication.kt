@@ -50,6 +50,8 @@ class AppContainer(context: android.content.Context) {
     val database: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "course.db")
         .addMigrations(AppDatabase.LEGACY_MIGRATION_2_3)
         .addMigrations(AppDatabase.MIGRATION_3_4)
+        .addMigrations(AppDatabase.MIGRATION_4_5)
+        .addMigrations(AppDatabase.MIGRATION_5_6)
         .build()
     val cookieStore = SessionCookieStore()
     val academicTermsCache = AcademicTermsCache()
@@ -61,6 +63,7 @@ class AppContainer(context: android.content.Context) {
     val timetableSelectionStore = TimetableSelectionStore(context)
     val reminderScheduler = AndroidReminderScheduler(context)
     val reminderCoordinator = ReminderCoordinator(localRepository, reminderScheduler, reminderSettingsStore, timetableSelectionStore)
+    val jsonTimetableStore = com.example.awake.data.repository.JsonTimetableStore(context)
     val schoolAdapterRegistry = SchoolAdapterRegistry()
     val scutClient = ScutJwClient(cookieStore)
     val scutRepository = ScutScheduleRepository(
@@ -74,7 +77,8 @@ class AppContainer(context: android.content.Context) {
     init {
         applicationScope.launch {
             val dao = database.periodConfigDao()
-            val current = dao.getAll()
+            // 只维护全局默认（timetableId = 0）；各课表的独立节次配置在设置页随课表保存。
+            val current = dao.getDefaults()
             val defaults = PeriodConfigDefaults.entities()
 
             when {
@@ -87,13 +91,13 @@ class AppContainer(context: android.content.Context) {
                         config.endTime == "%02d:%02d".format(oldEnd / 60, oldEnd % 60)
                 } -> {
                     dao.insertAll(defaults)
-                    dao.deleteAfter(PeriodConfigDefaults.periodCount)
+                    dao.deleteDefaultAfter(PeriodConfigDefaults.periodCount)
                 }
                 else -> {
                     // 保留用户已经修改过的时间，只补齐缺失的默认节次并移除旧的第 12 节。
                     val existingPeriods = current.map { it.period }.toSet()
                     dao.insertAll(defaults.filterNot { it.period in existingPeriods })
-                    dao.deleteAfter(PeriodConfigDefaults.periodCount)
+                    dao.deleteDefaultAfter(PeriodConfigDefaults.periodCount)
                 }
             }
         }

@@ -48,7 +48,7 @@ class ScutScheduleRepository(
                 } ?: full
             }
             val mapped = mapper.map(payload, timetable.id, timetable.totalWeeks)
-            local.replaceRemoteCourses(timetable, mapped.courses, mapped.weeks)
+            local.replaceRemoteCourses(timetable, mapped.courses, mapped.sections, mapped.weeks)
             if (mapped.studentId != null || mapped.studentName != null) {
                 local.saveLoggedInProfile(mapped.studentName, mapped.studentId)
             }

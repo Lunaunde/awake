@@ -60,9 +60,19 @@ import java.time.temporal.TemporalAdjusters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone: () -> Unit) {
+fun TermImportScreen(
+    viewModel: TermImportViewModel,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+    onLogin: () -> Unit = {}
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCustomTermDialog by remember { mutableStateOf(false) }
+    var jsonText by remember { mutableStateOf("") }
+    var blankLabel by remember { mutableStateOf("") }
+    var importSectionExpanded by remember { mutableStateOf(true) }
+    var jsonSectionExpanded by remember { mutableStateOf(false) }
+    var blankSectionExpanded by remember { mutableStateOf(false) }
     var termMenuExpanded by remember { mutableStateOf(false) }
     var academicYearMenuExpanded by remember { mutableStateOf(false) }
     var semesterMenuExpanded by remember { mutableStateOf(false) }
@@ -90,69 +100,143 @@ fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone:
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                val sessionColor = when (state.sessionStatus) {
-                    SessionUiStatus.AVAILABLE -> MaterialTheme.colorScheme.primary
-                    SessionUiStatus.CHECKING -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.error
-                }
-                val sessionIcon = when (state.sessionStatus) {
-                    SessionUiStatus.AVAILABLE -> Icons.Default.Check
-                    SessionUiStatus.CHECKING -> Icons.Default.Refresh
-                    SessionUiStatus.NETWORK_ERROR -> Icons.Default.CloudOff
-                    else -> Icons.Default.ErrorOutline
-                }
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = sessionColor.copy(alpha = 0.12f),
-                    shape = MaterialTheme.shapes.large
+                ImportSection(
+                    title = "教务系统导入",
+                    expanded = importSectionExpanded,
+                    onExpandedChange = { importSectionExpanded = it }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(sessionIcon, contentDescription = null, tint = sessionColor)
-                        Column {
-                            Text(
-                                when (state.sessionStatus) {
-                                    SessionUiStatus.CHECKING -> "正在检查教务会话…"
-                                    SessionUiStatus.AVAILABLE -> "教务系统会话可用"
-                                    SessionUiStatus.UNAVAILABLE -> "教务会话已失效"
-                                    SessionUiStatus.NETWORK_ERROR -> "教务系统网络不可用"
-                                    SessionUiStatus.SERVER_ERROR -> "教务系统暂时不可用"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = sessionColor
-                            )
-                            Text(
-                                state.sessionDetail ?: "选择学期并获取课程，获取成功后才会加入待导入列表",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val sessionColor = when (state.sessionStatus) {
+                            SessionUiStatus.AVAILABLE -> MaterialTheme.colorScheme.primary
+                            SessionUiStatus.CHECKING -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.error
                         }
+                        val sessionIcon = when (state.sessionStatus) {
+                            SessionUiStatus.AVAILABLE -> Icons.Default.Check
+                            SessionUiStatus.CHECKING -> Icons.Default.Refresh
+                            SessionUiStatus.NETWORK_ERROR -> Icons.Default.CloudOff
+                            else -> Icons.Default.ErrorOutline
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = sessionColor.copy(alpha = 0.12f),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(sessionIcon, contentDescription = null, tint = sessionColor)
+                                Column {
+                                    Text(
+                                        when (state.sessionStatus) {
+                                            SessionUiStatus.CHECKING -> "正在检查教务会话…"
+                                            SessionUiStatus.AVAILABLE -> "教务系统会话可用"
+                                            SessionUiStatus.UNAVAILABLE -> "教务会话已失效"
+                                            SessionUiStatus.NETWORK_ERROR -> "教务系统网络不可用"
+                                            SessionUiStatus.SERVER_ERROR -> "教务系统暂时不可用"
+                                        },
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = sessionColor
+                                    )
+                                    Text(
+                                        state.sessionDetail ?: "选择学期并获取课程，获取成功后才会加入待导入列表",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        if (!state.isLoggedIn) {
+                            OutlinedButton(
+                                onClick = onLogin,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("未登录 · 前往官方页面登录") }
+                        }
+                        AcademicTermSelector(
+                            state = state,
+                            academicYearExpanded = academicYearMenuExpanded,
+                            semesterExpanded = semesterMenuExpanded,
+                            enabled = !state.busy && !state.loadingAcademicYears,
+                            onAcademicYearExpandedChange = { academicYearMenuExpanded = it },
+                            onSemesterExpandedChange = { semesterMenuExpanded = it },
+                            onAcademicYearSelected = {
+                                academicYearMenuExpanded = false
+                                viewModel.selectAcademicYear(it)
+                            },
+                            onSemesterSelected = {
+                                semesterMenuExpanded = false
+                                viewModel.selectSemester(it)
+                            },
+                            onFetch = viewModel::previewSelectedTerm,
+                            onRefresh = { viewModel.loadAcademicYears(force = true) }
+                        )
                     }
                 }
             }
             item {
-                AcademicTermSelector(
-                    state = state,
-                    academicYearExpanded = academicYearMenuExpanded,
-                    semesterExpanded = semesterMenuExpanded,
-                    enabled = !state.busy && !state.loadingAcademicYears,
-                    onAcademicYearExpandedChange = { academicYearMenuExpanded = it },
-                    onSemesterExpandedChange = { semesterMenuExpanded = it },
-                    onAcademicYearSelected = {
-                        academicYearMenuExpanded = false
-                        viewModel.selectAcademicYear(it)
-                    },
-                    onSemesterSelected = {
-                        semesterMenuExpanded = false
-                        viewModel.selectSemester(it)
-                    },
-                    onFetch = viewModel::previewSelectedTerm,
-                    onRefresh = { viewModel.loadAcademicYears(force = true) }
-                )
+                ImportSection(
+                    title = "JSON 导入",
+                    expanded = jsonSectionExpanded,
+                    onExpandedChange = { jsonSectionExpanded = it }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "粘贴其他设备分享的课表 JSON 文本，解析后暂存到下方「待导入课表」列表，统一执行导入。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = jsonText,
+                            onValueChange = { jsonText = it },
+                            label = { Text("课表 JSON") },
+                            minLines = 4,
+                            maxLines = 8,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = {
+                                // 异步解析+暂存；结果通过状态栏展示。
+                                viewModel.stageJsonText(jsonText)
+                                jsonText = ""
+                            },
+                            enabled = !state.busy && jsonText.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("暂存到待导入") }
+                    }
+                }
+            }
+            item {
+                ImportSection(
+                    title = "新建空课表",
+                    expanded = blankSectionExpanded,
+                    onExpandedChange = { blankSectionExpanded = it }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "创建一份空白手动课表（暂存到「待导入课表」后统一导入；可在周视图点击空白时段添加课程）。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = blankLabel,
+                            onValueChange = { blankLabel = it },
+                            label = { Text("课表名称") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = {
+                                viewModel.stageBlankTable(blankLabel)
+                                blankLabel = ""
+                            },
+                            enabled = !state.busy && blankLabel.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("暂存到待导入") }
+                    }
+                }
             }
             if (state.terms.any { it.selected }) {
                 item {
@@ -169,7 +253,13 @@ fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone:
                 item {
                     val selectedTerms = state.terms.filter { it.selected }
                     Text(
-                        "已获取 ${selectedTerms.size} 个学期课表；可继续查询并添加其他学期",
+                        when {
+                            state.mode == ImportMode.OVERWRITE ->
+                                "覆盖模式：只保留一份待导入课表，导入时将替换当前课表" +
+                                    (state.overwriteTargetLabel?.let { "“$it”" } ?: "") +
+                                    "；已保留 ${selectedTerms.size} 份"
+                            else -> "已获取 ${selectedTerms.size} 个学期课表；可继续查询并添加其他学期"
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -180,15 +270,24 @@ fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone:
                             term = term,
                             enabled = !state.busy && state.previewingTermKey == null,
                             onLabelChange = { viewModel.setTermLabel(term.key, it) },
-                            onStartDateChange = { viewModel.setTermStartDate(term.key, it) }
+                            onStartDateChange = { viewModel.setTermStartDate(term.key, it) },
+                            onDelete = { viewModel.removeCustomTerm(term.key) }
                         )
-                        CourseSelectionSection(
-                            term = term,
-                            enabled = !state.busy && state.previewingTermKey == null,
-                            onRetry = { viewModel.previewTerm(term.key) },
-                            onToggleAll = { viewModel.toggleAllCourses(term.key) },
-                            onToggleCourse = { viewModel.toggleCourse(term.key, it) }
-                        )
+                        if (term.isBlank) {
+                            Text(
+                                "空课表：无需选择课程，导入即创建/清空课表。",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            CourseSelectionSection(
+                                term = term,
+                                enabled = !state.busy && state.previewingTermKey == null,
+                                onRetry = { viewModel.previewTerm(term.key) },
+                                onToggleAll = { viewModel.toggleAllCourses(term.key) },
+                                onToggleCourse = { viewModel.toggleCourse(term.key, it) }
+                            )
+                        }
                     }
                 }
             }
@@ -200,13 +299,6 @@ fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone:
                 ) {
                     Text(if (state.busy) "正在导入…" else "导入已选课表")
                 }
-            }
-            item {
-                OutlinedButton(
-                    onClick = viewModel::seedDemo,
-                    enabled = !state.busy,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("生成离线演示课表") }
             }
             item {
                 state.status?.let {
@@ -230,26 +322,49 @@ fun TermImportScreen(viewModel: TermImportViewModel, onBack: () -> Unit, onDone:
         )
     }
 
+    // 覆盖模式：执行前的“确认替换当前课表”弹窗（添加模式不再出现任何覆盖相关弹窗）。
     state.conflictTimetable?.let { existing ->
-        val term = state.conflictTerm
+        val pendingLabel = state.pendingTerms.firstOrNull()?.label
         AlertDialog(
             onDismissRequest = { if (!state.busy) viewModel.dismissConflict() },
-            title = { Text("发现同学期课表") },
+            title = { Text("确认替换当前课表") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("“${term?.label ?: existing.label}”已经存在。请选择本次导入方式：")
-                    Text(
-                        "覆盖：替换该课表中的教务同步课程，手动添加的课程仍会保留。\n新建：保留原课表，另存为一份独立课表。"
-                    )
+                    Text("将用“${pendingLabel ?: existing.label}”替换当前课表“${existing.label}”，学期信息一并更新。")
+                    if (state.pendingTerms.any { it.isJson }) {
+                        Text(
+                            "包含 JSON 导入项：按分享文本整表重建（不区分手动/同步课程）。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (state.pendingTerms.any { it.isBlank }) {
+                        Text(
+                            "空课表：将当前课表清空并改为新名称。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            "教务导入：只替换教务同步课程，手动添加的课程会保留。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissConflict, enabled = !state.busy) { Text("取消剩余导入") }
-            },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { viewModel.createNew(onDone) }, enabled = !state.busy) { Text("新建") }
-                    Button(onClick = { viewModel.overwriteExisting(onDone) }, enabled = !state.busy) { Text("覆盖") }
+                // 取消与确认同列排布，避免与底部按钮重叠。
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        onClick = { viewModel.confirmOverwrite(onDone) },
+                        enabled = !state.busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("确认替换") }
+                    TextButton(
+                        onClick = viewModel::dismissConflict,
+                        enabled = !state.busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("取消") }
                 }
             }
         )
@@ -496,16 +611,11 @@ private fun TermDropdownPicker(
                                                 )
                                             }
                                         },
-                                        leadingIcon = {
-                                            Icon(Icons.Default.Check, contentDescription = "已加入")
-                                        },
-                                        trailingIcon = if (!term.builtIn) {
-                                            {
-                                                IconButton(onClick = { onRemove(term.key) }) {
-                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除自定义课表")
-                                                }
+                                        trailingIcon = {
+                                            IconButton(onClick = { onRemove(term.key) }) {
+                                                Icon(Icons.Default.DeleteOutline, contentDescription = "删除暂存课表")
                                             }
-                                        } else null,
+                                        },
                                         onClick = { onToggle(term.key) }
                                     )
                                 }
@@ -516,7 +626,7 @@ private fun TermDropdownPicker(
             }
         }
         Text(
-            if (selected.isEmpty()) "查询并获取实际课程后，课表会出现在这里" else "点击展开，可移除已获取的学期课表",
+            if (selected.isEmpty()) "查询并获取实际课程后，课表会出现在这里" else "点击展开，可移除已暂存的课表",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -528,7 +638,8 @@ private fun SelectedTermEditor(
     term: ImportTermOption,
     enabled: Boolean,
     onLabelChange: (String) -> Unit,
-    onStartDateChange: (String) -> Unit
+    onStartDateChange: (String) -> Unit,
+    onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -536,8 +647,15 @@ private fun SelectedTermEditor(
         border = CardDefaults.outlinedCardBorder()
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(term.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(term.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(term.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(term.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onDelete, enabled = enabled) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除暂存课表")
+                }
+            }
             OutlinedTextField(
                 value = term.label,
                 onValueChange = onLabelChange,
@@ -733,7 +851,7 @@ private fun ImportTermCard(
     onRemove: (() -> Unit)?
 ) {
     // 保留旧组件签名，便于后续测试或预览引用；主界面已改用下拉选择器。
-    SelectedTermEditor(term, enabled, onLabelChange, onStartDateChange)
+    SelectedTermEditor(term, enabled, onLabelChange, onStartDateChange, onDelete = onRemove ?: {})
 }
 
 @Composable
@@ -765,5 +883,46 @@ private fun CustomTermDialog(
 private object LocalDateHolder {
     fun defaultYear(): String = LocalDate.now().let { if (it.monthValue >= 8) it.year else it.year - 1 }.toString()
     fun defaultMonday(): String = LocalDate.now().with(TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY)).toString()
+}
+
+/** 可展开的导入区域：标题 + 展开/收起箭头；用于「教务系统导入」「JSON 导入」「新建空课表」。 */
+@Composable
+private fun ImportSection(
+    title: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder()
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起$title" else "展开$title"
+                )
+            }
+            if (expanded) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    content()
+                }
+            }
+        }
+    }
 }
 

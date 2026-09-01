@@ -29,19 +29,20 @@ class CourseReminderReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 val timetableId = intent.getLongExtra(ReminderNotificationContract.EXTRA_TIMETABLE_ID, -1L)
-                val courseId = intent.getLongExtra(ReminderNotificationContract.EXTRA_COURSE_ID, -1L)
+                // EXTRA_COURSE_ID 携带的是触发提醒的时段 id（CourseSectionEntity.id）。
+                val sectionId = intent.getLongExtra(ReminderNotificationContract.EXTRA_COURSE_ID, -1L)
                 val minutesBefore = intent.getIntExtra(ReminderNotificationContract.EXTRA_MINUTES_BEFORE, 15)
-                if (timetableId <= 0L || courseId <= 0L) return@launch
+                if (timetableId <= 0L || sectionId <= 0L) return@launch
                 val settings = app.container.reminderSettingsStore.read()
                 if (!settings.enabled || !NotificationChannels.canPostNotifications(context)) return@launch
-                val course = app.container.localRepository.getCourseOrNull(courseId) ?: return@launch
-                if (course.timetableId != timetableId) return@launch
+                val slot = app.container.localRepository.getSlotOrNull(sectionId) ?: return@launch
+                if (slot.timetableId != timetableId) return@launch
                 val timetable = app.container.localRepository.getTimetableOrNull(timetableId) ?: return@launch
                 val notification = NotificationCompat.Builder(context, NotificationChannels.REMINDER_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_popup_reminder)
-                    .setContentTitle("${course.name} · 课前提醒")
-                    .setContentText(buildContent(course.teacher, course.room, minutesBefore))
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(buildContent(course.teacher, course.room, minutesBefore)))
+                    .setContentTitle("${slot.name} · 课前提醒")
+                    .setContentText(buildContent(slot.teacher, slot.room, minutesBefore))
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(buildContent(slot.teacher, slot.room, minutesBefore)))
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                     .setAutoCancel(true)
                     .setContentIntent(contentIntent(context))
@@ -49,7 +50,7 @@ class CourseReminderReceiver : BroadcastReceiver() {
                 if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU ||
                     context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                 ) {
-                    NotificationManagerCompat.from(context).notify(notificationId(timetable.id, course.id), notification)
+                    NotificationManagerCompat.from(context).notify(notificationId(timetable.id, slot.sectionId), notification)
                 }
             } finally {
                 pendingResult.finish()
@@ -72,8 +73,8 @@ class CourseReminderReceiver : BroadcastReceiver() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    private fun notificationId(timetableId: Long, courseId: Long): Int =
-        "${timetableId}:$courseId".hashCode() and 0x7fffffff
+    private fun notificationId(timetableId: Long, sectionId: Long): Int =
+        "${timetableId}:$sectionId".hashCode() and 0x7fffffff
 }
 
 /** 设备重启或应用更新后恢复当前课表的未来提醒。 */

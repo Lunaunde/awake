@@ -9,7 +9,7 @@ import android.widget.RemoteViews
 import com.example.awake.AwakeApplication
 import com.example.awake.MainActivity
 import com.example.awake.R
-import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.CourseSlotEntity
 import com.example.awake.data.local.PeriodConfigEntity
 import com.example.awake.data.local.TimetableEntity
 import com.example.awake.domain.parser.WeekExpressionParser
@@ -54,8 +54,8 @@ class AwakeWidgetProvider : AppWidgetProvider() {
             ?.coerceIn(1, timetable.totalWeeks.coerceAtLeast(1))
             ?: 1
         val day = today.dayOfWeek.value
-        val periods = local.getPeriodConfigs().associateBy { it.period }
-        val courses = local.getAllCourses(timetable.id)
+        val periods = local.getPeriodConfigsFor(timetable.id).associateBy { it.period }
+        val courses = local.getAllSlots(timetable.id)
             .filter { it.dayOfWeek == day && WeekExpressionParser.parse(it.rawWeekText, timetable.totalWeeks).weeks.contains(week) }
             .sortedBy { it.startPeriod }
         return WidgetData(timetable, week, day, courses, periods)
@@ -98,7 +98,7 @@ class AwakeWidgetProvider : AppWidgetProvider() {
         manager.updateAppWidget(id, views)
     }
 
-    private fun buildMeta(course: CourseEntity, periods: Map<Int, PeriodConfigEntity>): String = buildString {
+    private fun buildMeta(course: CourseSlotEntity, periods: Map<Int, PeriodConfigEntity>): String = buildString {
         append("第 ").append(course.startPeriod)
         if (course.endPeriod != course.startPeriod) append("-").append(course.endPeriod)
         append(" 节")
@@ -112,7 +112,7 @@ class AwakeWidgetProvider : AppWidgetProvider() {
         val timetable: TimetableEntity?,
         val week: Int = 1,
         val day: Int = 1,
-        val courses: List<CourseEntity> = emptyList(),
+        val courses: List<CourseSlotEntity> = emptyList(),
         val periods: Map<Int, PeriodConfigEntity> = emptyMap()
     ) {
         companion object { fun empty() = WidgetData(null) }

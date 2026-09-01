@@ -45,7 +45,7 @@ class AndroidReminderScheduler(context: Context) : ReminderScheduler {
     }
 
     private fun alarmKey(reminder: Reminder): String =
-        "${reminder.timetableId}:${reminder.courseId}:${reminder.triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()}"
+        "${reminder.timetableId}:${reminder.sectionId}:${reminder.triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()}"
 
     private fun pendingIntent(reminder: Reminder, key: String): PendingIntent =
         PendingIntent.getBroadcast(
@@ -54,7 +54,7 @@ class AndroidReminderScheduler(context: Context) : ReminderScheduler {
             Intent(appContext, CourseReminderReceiver::class.java).apply {
                 action = ReminderNotificationContract.ACTION_COURSE_REMINDER
                 putExtra(ReminderNotificationContract.EXTRA_TIMETABLE_ID, reminder.timetableId)
-                putExtra(ReminderNotificationContract.EXTRA_COURSE_ID, reminder.courseId)
+                putExtra(ReminderNotificationContract.EXTRA_COURSE_ID, reminder.sectionId)
                 putExtra(ReminderNotificationContract.EXTRA_MINUTES_BEFORE, reminder.minutesBefore)
                 putExtra(ReminderNotificationContract.EXTRA_ALARM_KEY, key)
             },

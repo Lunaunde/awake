@@ -28,39 +28,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
-import com.example.awake.data.local.CourseEntity
+import com.example.awake.data.local.CourseSlotEntity
 
 data class CoursePalette(
     val background: Color,
     val accent: Color
 )
 
-// 颜色按课程名称稳定计算：同名课程保持一致，同时扩大色板并提高边框对比度，
-// 避免所有卡片看起来像一组相近的粉彩色。
-private val CoursePalettes = listOf(
-    CoursePalette(Color(0xFFD7E8FF), Color(0xFF4778E8)), // 蓝
-    CoursePalette(Color(0xFFFFE0D8), Color(0xFFE56B55)), // 珊瑚
-    CoursePalette(Color(0xFFD8F3E4), Color(0xFF2A9D74)), // 薄荷
-    CoursePalette(Color(0xFFE9E0FF), Color(0xFF7654D6)), // 紫
-    CoursePalette(Color(0xFFFFF0C2), Color(0xFFD99616)), // 琥珀
-    CoursePalette(Color(0xFFFFDCE7), Color(0xFFD84F78)), // 玫红
-    CoursePalette(Color(0xFFD9F1F5), Color(0xFF238FA3)), // 青
-    CoursePalette(Color(0xFFE7F1C8), Color(0xFF719A2C)), // 黄绿
-    CoursePalette(Color(0xFFFFE5C6), Color(0xFFD47722)), // 橙
-    CoursePalette(Color(0xFFDDE7F7), Color(0xFF5874B8)), // 靛蓝
-    CoursePalette(Color(0xFFF0DDF4), Color(0xFF9B4DAB)), // 兰紫
-    CoursePalette(Color(0xFFD8EEE9), Color(0xFF258B7A)), // 蓝绿
-    CoursePalette(Color(0xFFFFE0E4), Color(0xFFC94C65)), // 红
-    CoursePalette(Color(0xFFE0E5FF), Color(0xFF5669D6)), // 紫蓝
-    CoursePalette(Color(0xFFDDF4EF), Color(0xFF249B88)), // 海绿色
-    CoursePalette(Color(0xFFFFE8D6), Color(0xFFCF7A3E)), // 杏色
-    CoursePalette(Color(0xFFEADFF2), Color(0xFF8C5BAA)), // 藕紫
-    CoursePalette(Color(0xFFD9EDFF), Color(0xFF3587C4))  // 天蓝
-)
-
 @Composable
-fun CourseCard(course: CourseEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = coursePaletteFor(course.name)
+fun CourseCard(course: CourseSlotEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = paletteForAccent(course.color)
     val accent = palette.accent
     Surface(
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -90,7 +67,7 @@ fun CourseCard(course: CourseEntity, onClick: () -> Unit, modifier: Modifier = M
 
 @Composable
 fun WeekGridCourseCard(
-    course: CourseEntity,
+    course: CourseSlotEntity,
     rowHeight: Dp,
     columnWidth: Dp,
     laneIndex: Int = 0,
@@ -98,7 +75,7 @@ fun WeekGridCourseCard(
     isCurrentWeek: Boolean = true,
     currentWeek: Int = 1,
     totalWeeks: Int = 30,
-    palette: CoursePalette = coursePaletteFor(course.name),
+    palette: CoursePalette = paletteForAccent(course.color),
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -186,42 +163,40 @@ private fun StatusPill(text: String, accent: Color) {
     }
 }
 
-internal fun coursePaletteFor(name: String): CoursePalette {
-    val normalizedName = normalizeCourseName(name)
-    val index = Math.floorMod(stablePaletteSeed(normalizedName), CoursePalettes.size)
-    return CoursePalettes[index]
+/**
+ * 由课程主记录存储的颜色（accent）派生卡片配色：
+ * 背景取同一色相的低饱和浅色，保证文字可读性。
+ */
+internal fun paletteForAccent(color: Int): CoursePalette {
+    val (hue, _, _) = rgbToHsv(color)
+    return CoursePalette(
+        background = Color.hsv(hue, saturation = 0.20f, value = 1.0f),
+        accent = Color.hsv(hue, saturation = 0.72f, value = 0.78f)
+    )
 }
 
 /**
- * 为当前课表中的不同课程名分配不重复的色板槽位，避免 hash 取模后撞色。
- * 同名课程使用同一个 key，因此不同星期和不同周次仍保持同色。
+ * 为当前课表中的课程构建颜色映射：键为课程主记录 id。
+ * 同一门课（所有时段）天然共享同一份存储颜色。
  */
-internal fun buildCoursePaletteMap(courses: List<CourseEntity>): Map<String, CoursePalette> {
-    val names = courses
-        .map { normalizeCourseName(it.name) }
-        .distinct()
-        .sorted()
-    if (names.isEmpty()) return emptyMap()
+internal fun buildCoursePaletteMap(courses: List<CourseSlotEntity>): Map<Long, CoursePalette> =
+    courses.associate { it.courseId to paletteForAccent(it.color) }
 
-    // 按当前课表中“不同课程名”的数量均匀分布色相：不同名字不会撞到同一颜色，
-    // 同一个名字无论星期或周次如何变化，都会从同一张映射表取到同一个颜色。
-    return names.mapIndexed { index, name ->
-        val hue = (20f + index * 360f / names.size) % 360f
-        name to CoursePalette(
-            background = Color.hsv(hue, saturation = 0.20f, value = 1.0f),
-            accent = Color.hsv(hue, saturation = 0.72f, value = 0.78f)
-        )
-    }.toMap()
-}
-
-private fun normalizeCourseName(name: String): String = name.trim().ifBlank { "未命名" }
-
-private fun stablePaletteSeed(name: String): Int {
-    // 先对 String.hashCode 做一次混合，避免中文课程名的 hash 在取模后大量撞色。
-    var mixed = name.hashCode()
-    mixed = (mixed xor (mixed ushr 16)) * 0x045D9F3B
-    mixed = (mixed xor (mixed ushr 16)) * 0x045D9F3B
-    return mixed xor (mixed ushr 16)
+private fun rgbToHsv(color: Int): Triple<Float, Float, Float> {
+    val r = (color shr 16 and 0xFF) / 255f
+    val g = (color shr 8 and 0xFF) / 255f
+    val b = (color and 0xFF) / 255f
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val hue = when {
+        delta <= 0f -> 0f
+        max == r -> 60f * (((g - b) / delta) % 6f)
+        max == g -> 60f * ((b - r) / delta + 2f)
+        else -> 60f * ((r - g) / delta + 4f)
+    }.let { if (it < 0f) it + 360f else it }
+    val saturation = if (max <= 0f) 0f else delta / max
+    return Triple(hue, saturation, max)
 }
 
 private fun heightForCourse(rowHeight: Dp, span: Int): Dp =
