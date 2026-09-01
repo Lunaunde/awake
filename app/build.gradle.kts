@@ -5,8 +5,20 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+import java.util.Properties
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// 正式签名：密钥与凭据存放在本机项目目录之外（D:/keystore），不进版本库。
+val releaseKeystore = file("D:/keystore/awake-release.jks")
+val releaseProps = Properties()
+run {
+    val propsFile = file("D:/keystore/keystore.properties")
+    if (propsFile.exists()) {
+        propsFile.inputStream().use { releaseProps.load(it) }
+    }
 }
 
 android {
@@ -22,10 +34,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseKeystore.exists()) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = releaseProps.getProperty("storePassword")
+                keyAlias = releaseProps.getProperty("keyAlias", "awake")
+                keyPassword = releaseProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     compileOptions {
