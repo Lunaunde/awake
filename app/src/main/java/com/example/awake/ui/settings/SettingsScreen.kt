@@ -43,6 +43,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,7 +71,9 @@ import com.example.awake.data.repository.TimetableSelectionStore
 import com.example.awake.data.repository.TimetableDisplaySettingsStore
 import com.example.awake.data.update.GitHubRelease
 import com.example.awake.data.update.GitHubReleaseChecker
+import com.example.awake.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -83,6 +86,8 @@ fun SettingsScreen(
     selection: TimetableSelectionStore,
     displaySettings: TimetableDisplaySettingsStore,
     remote: ScutJwClient,
+    themeMode: StateFlow<ThemeMode>,
+    onThemeModeChange: (ThemeMode) -> Unit,
     onBack: () -> Unit,
     onLogin: () -> Unit
 ) {
@@ -160,6 +165,7 @@ fun SettingsScreen(
 
     var section by remember { mutableStateOf(SettingsSection.OVERVIEW) }
     val showOtherWeeks by displaySettings.showOtherWeeks.collectAsStateWithLifecycle()
+    val currentThemeMode by themeMode.collectAsStateWithLifecycle()
 
     fun checkSessions() {
         if (checkingSessions) return
@@ -246,6 +252,12 @@ fun SettingsScreen(
                         title = "课表显示",
                         subtitle = if (showOtherWeeks) "非本周课程半透明显示 · 已开启" else "只显示本周课程 · 已关闭",
                         onClick = { section = SettingsSection.DISPLAY }
+                    )
+                    Text("外观", style = MaterialTheme.typography.titleMedium)
+                    SettingsOption(
+                        title = "深色模式",
+                        subtitle = "当前：${currentThemeMode.title}",
+                        onClick = { section = SettingsSection.APPEARANCE }
                     )
                     Text("教务账号和数据", style = MaterialTheme.typography.titleMedium)
                     SettingsOption(
@@ -389,6 +401,50 @@ fun SettingsScreen(
                                 status = if (enabled) "已开启非本周课程半透明显示" else "已关闭非本周课程显示"
                             }
                         )
+                    }
+                }
+
+                SettingsSection.APPEARANCE -> {
+                    Text("深色模式", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "「跟随系统」会随系统深色/浅色自动切换；选择浅色或深色则始终使用该外观。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    ThemeMode.entries.forEach { mode ->
+                        val selected = mode == currentThemeMode
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onThemeModeChange(mode) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selected,
+                                    onClick = { onThemeModeChange(mode) }
+                                )
+                                Column(modifier = Modifier.padding(start = 8.dp)) {
+                                    Text(mode.title, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        when (mode) {
+                                            ThemeMode.SYSTEM -> "随系统设置自动切换"
+                                            ThemeMode.LIGHT -> "始终使用浅色外观"
+                                            ThemeMode.DARK -> "始终使用深色外观"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -603,6 +659,7 @@ private enum class SettingsSection(val title: String) {
     REMINDERS("课前提醒"),
     PERIODS("节次时间"),
     DISPLAY("课表显示"),
+    APPEARANCE("深色模式"),
     ACCOUNT("账号与本地数据"),
     UPDATE("检查更新")
 }

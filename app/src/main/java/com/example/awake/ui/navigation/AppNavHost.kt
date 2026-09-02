@@ -97,6 +97,8 @@ fun AppNavHost(container: AppContainer) {
                 selection = container.timetableSelectionStore,
                 displaySettings = container.timetableDisplaySettingsStore,
                 remote = container.scutClient,
+                themeMode = container.themeModeFlow,
+                onThemeModeChange = container::setThemeMode,
                 onBack = { navController.popBackStack() },
                 onLogin = { navController.navigate(Routes.LOGIN) }
             )

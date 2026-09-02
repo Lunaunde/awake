@@ -47,6 +47,7 @@ import com.example.awake.data.local.CourseSlotEntity
 import com.example.awake.data.local.PeriodConfigDefaults
 import com.example.awake.data.local.PeriodConfigEntity
 import com.example.awake.domain.parser.WeekExpressionParser
+import com.example.awake.ui.theme.LocalDarkTheme
 
 private val GridLine = Color(0xFFD8E2E8)
 private val GridBackground = Color.Transparent
@@ -84,8 +85,9 @@ fun WeeklyTimetableGrid(
     val density = LocalDensity.current
     val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
     val periodByNumber = periodConfigs.associateBy { it.period }
-    val paletteByCourse = remember(courses, previousCourses, nextCourses) {
-        buildCoursePaletteMap(courses + previousCourses + nextCourses)
+    val darkTheme = LocalDarkTheme.current
+    val paletteByCourse = remember(courses, previousCourses, nextCourses, darkTheme) {
+        buildCoursePaletteMap(courses + previousCourses + nextCourses, darkTheme)
     }
 
     BoxWithConstraints(
@@ -369,7 +371,7 @@ private fun WeekGridPage(
                                 currentWeek = currentWeek,
                                 totalWeeks = totalWeeks,
                                 palette = paletteByCourse[positioned.course.courseId]
-                                    ?: paletteForAccent(positioned.course.color),
+                                    ?: paletteForAccent(positioned.course.color, LocalDarkTheme.current),
                                 onClick = { onCourseClick(positioned.course.courseId) }
                             )
                         }

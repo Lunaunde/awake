@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.example.awake.data.local.CourseSlotEntity
+import com.example.awake.ui.theme.LocalDarkTheme
 
 data class CoursePalette(
     val background: Color,
@@ -37,7 +38,7 @@ data class CoursePalette(
 
 @Composable
 fun CourseCard(course: CourseSlotEntity, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = paletteForAccent(course.color)
+    val palette = paletteForAccent(course.color, LocalDarkTheme.current)
     val accent = palette.accent
     Surface(
         modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -75,14 +76,15 @@ fun WeekGridCourseCard(
     isCurrentWeek: Boolean = true,
     currentWeek: Int = 1,
     totalWeeks: Int = 30,
-    palette: CoursePalette = paletteForAccent(course.color),
+    palette: CoursePalette? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val resolvedPalette = palette ?: paletteForAccent(course.color, LocalDarkTheme.current)
     val span = (course.endPeriod - course.startPeriod + 1).coerceAtLeast(1)
     val height = heightForCourse(rowHeight, span)
-    val accent = palette.accent
-    val background = palette.background
+    val accent = resolvedPalette.accent
+    val background = resolvedPalette.background
     val safeLaneCount = laneCount.coerceAtLeast(1)
     val laneWidth = (columnWidth / safeLaneCount).coerceAtLeast(1.dp)
     val laneStart = laneWidth * laneIndex.coerceIn(0, safeLaneCount - 1)
@@ -164,23 +166,31 @@ private fun StatusPill(text: String, accent: Color) {
 }
 
 /**
- * 由课程主记录存储的颜色（accent）派生卡片配色：
- * 背景取同一色相的低饱和浅色，保证文字可读性。
+ * 由课程主记录存储的颜色（accent）派生卡片配色。
+ * 浅色模式：背景取同一色相的低饱和浅色；深色模式：取低明度深色，
+ * 保证主题文字色（浅色下深字 / 深色下白字）在两种背景上都可读。
  */
-internal fun paletteForAccent(color: Int): CoursePalette {
+internal fun paletteForAccent(color: Int, dark: Boolean = false): CoursePalette {
     val (hue, _, _) = rgbToHsv(color)
-    return CoursePalette(
-        background = Color.hsv(hue, saturation = 0.20f, value = 1.0f),
-        accent = Color.hsv(hue, saturation = 0.72f, value = 0.78f)
-    )
+    return if (dark) {
+        CoursePalette(
+            background = Color.hsv(hue, saturation = 0.28f, value = 0.36f),
+            accent = Color.hsv(hue, saturation = 0.80f, value = 0.90f)
+        )
+    } else {
+        CoursePalette(
+            background = Color.hsv(hue, saturation = 0.20f, value = 1.0f),
+            accent = Color.hsv(hue, saturation = 0.72f, value = 0.78f)
+        )
+    }
 }
 
 /**
  * 为当前课表中的课程构建颜色映射：键为课程主记录 id。
  * 同一门课（所有时段）天然共享同一份存储颜色。
  */
-internal fun buildCoursePaletteMap(courses: List<CourseSlotEntity>): Map<Long, CoursePalette> =
-    courses.associate { it.courseId to paletteForAccent(it.color) }
+internal fun buildCoursePaletteMap(courses: List<CourseSlotEntity>, dark: Boolean = false): Map<Long, CoursePalette> =
+    courses.associate { it.courseId to paletteForAccent(it.color, dark) }
 
 private fun rgbToHsv(color: Int): Triple<Float, Float, Float> {
     val r = (color shr 16 and 0xFF) / 255f

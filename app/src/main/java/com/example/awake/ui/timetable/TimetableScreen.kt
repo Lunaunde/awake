@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.awake.data.local.TimetableEntity
 import com.example.awake.ui.components.GridLegend
 import com.example.awake.ui.components.WeeklyTimetableGrid
+import com.example.awake.ui.theme.LocalDarkTheme
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -138,7 +139,11 @@ fun TimetableScreen(
         }
     }
 
-    Scaffold(containerColor = Color(0xFFE9ECF8)) { padding ->
+    Scaffold(containerColor = if (LocalDarkTheme.current) {
+        MaterialTheme.colorScheme.background
+    } else {
+        Color(0xFFE9ECF8)
+    }) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -395,7 +400,13 @@ private fun TimetableControlSheet(
     ) {
         Text("课表选项", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F0F3)),
+            colors = CardDefaults.cardColors(
+                containerColor = if (LocalDarkTheme.current) {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                } else {
+                    Color(0xFFE6F0F3)
+                }
+            ),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -502,7 +513,13 @@ private fun EmptyTimetableState(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(26.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F1F3))
+            colors = CardDefaults.cardColors(
+                containerColor = if (LocalDarkTheme.current) {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                } else {
+                    Color(0xFFE8F1F3)
+                }
+            )
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
