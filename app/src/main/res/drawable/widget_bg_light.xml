@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 组件卡片底（浅色版，字面色值）：Provider 每次更新时按深浅模式 setBackgroundResource 显式选用，
+     保证 App 内切换主题后组件背景立即跟随（XML 资源只在 inflate 时解析一次，不会跟随）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="#E9ECF8" />
+</shape>

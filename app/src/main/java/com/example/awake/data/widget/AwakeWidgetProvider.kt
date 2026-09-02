@@ -117,6 +117,25 @@ class AwakeWidgetProvider : AppWidgetProvider() {
             )
         }
 
+        // 显式按深浅模式设置背景与文字颜色：XML 资源只在桌面 inflate 视图时解析一次，
+        // App 内切换主题后不会跟随，必须由代码在每次更新时重新着色。
+        fun applyChrome(views: RemoteViews) {
+            val chipBg = if (dark) R.drawable.widget_chip_bg_night else R.drawable.widget_chip_bg_light
+            views.setInt(
+                R.id.widget_card,
+                "setBackgroundResource",
+                if (dark) R.drawable.widget_bg_night else R.drawable.widget_bg_light
+            )
+            views.setTextColor(R.id.widget_title, WidgetPalette.textPrimary(dark))
+            views.setTextColor(R.id.widget_subtitle, WidgetPalette.textSecondary(dark))
+            views.setTextColor(R.id.widget_rl_head, WidgetPalette.textSecondary(dark))
+            views.setTextColor(R.id.widget_empty, WidgetPalette.textSecondary(dark))
+            listOf(R.id.widget_btn_timetable, R.id.widget_btn_prev, R.id.widget_btn_next).forEach { id ->
+                views.setTextColor(id, WidgetPalette.chipText(dark))
+                views.setInt(id, "setBackgroundResource", chipBg)
+            }
+        }
+
         fun buildViews(): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_timetable)
             attachRootAndNavIntents(context, views, widgetId)
@@ -128,6 +147,7 @@ class AwakeWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_btn_prev, View.GONE)
                 views.setViewVisibility(R.id.widget_btn_next, View.GONE)
                 views.setViewVisibility(R.id.widget_btn_timetable, View.GONE)
+                applyChrome(views)
                 views.setEmptyView(R.id.widget_list, R.id.widget_empty)
                 attachAdapter(views)
                 return views
@@ -161,6 +181,10 @@ class AwakeWidgetProvider : AppWidgetProvider() {
                 } else {
                     views.setTextViewText(headerNumIds[index], "")
                 }
+                views.setTextColor(
+                    headerNumIds[index],
+                    if (isToday) primary else WidgetPalette.textSecondary(dark)
+                )
                 if (isToday) {
                     views.setViewVisibility(headerDotIds[index], View.VISIBLE)
                     views.setInt(headerDotIds[index], "setColorFilter", primary)
@@ -169,6 +193,7 @@ class AwakeWidgetProvider : AppWidgetProvider() {
                 }
             }
 
+            applyChrome(views)
             views.setEmptyView(R.id.widget_list, R.id.widget_empty)
             attachAdapter(views)
             return views

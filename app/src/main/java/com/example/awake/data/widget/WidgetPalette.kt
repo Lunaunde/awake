@@ -97,6 +97,19 @@ internal object WidgetPalette {
         return if (dark) 0xFFE6E1E5.toInt() else 0xFF1C1B1F.toInt()
     }
 
+    /**
+     * 组件文字/控件底色的字面值（与 res/widget_colors.xml 同值）。
+     * XML 资源只在桌面 inflate 视图时解析一次，切主题后不会跟随；
+     * 这些颜色必须在每次组件更新时代码里按深浅显式设置。
+     */
+    fun textPrimary(dark: Boolean): Int = if (dark) 0xFFE6E1E5.toInt() else 0xFF1C1B1F.toInt()
+
+    fun textSecondary(dark: Boolean): Int = if (dark) 0xFFCAC4D0.toInt() else 0xFF49454F.toInt()
+
+    fun chipBackground(dark: Boolean): Int = if (dark) 0xFF2B2930.toInt() else 0xFFFFFFFF.toInt()
+
+    fun chipText(dark: Boolean): Int = textPrimary(dark)
+
     /** 组件卡片底色：浅色固定为 App 主界面底色 #E9ECF8；深色取动态 neutral 底，低版本回退 #1C1B1F。 */
     fun surface(context: Context, dark: Boolean): Int {
         if (dark) {

@@ -23,6 +23,7 @@ import com.example.awake.data.repository.TimetableSelectionStore
 import com.example.awake.data.repository.TimetableDisplaySettingsStore
 import com.example.awake.data.repository.ThemeModeStore
 import com.example.awake.data.repository.ScutScheduleRepository
+import com.example.awake.data.widget.AwakeWidgetUpdater
 import com.example.awake.ui.theme.ThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,7 @@ class AwakeApplication : Application() {
 }
 
 class AppContainer(context: android.content.Context) {
+    private val appContext = context
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val database: AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "course.db")
         .addMigrations(AppDatabase.LEGACY_MIGRATION_2_3)
@@ -73,6 +75,8 @@ class AppContainer(context: android.content.Context) {
     fun setThemeMode(mode: ThemeMode) {
         themeModeStore.write(mode)
         themeModeFlow.value = mode
+        // 主题深浅切换后立即刷新小组件（否则组件要等下一次数据刷新才会换配色）。
+        AwakeWidgetUpdater.requestUpdate(appContext)
     }
     val reminderCoordinator = ReminderCoordinator(localRepository, reminderScheduler, reminderSettingsStore, timetableSelectionStore)
     val jsonTimetableStore = com.example.awake.data.repository.JsonTimetableStore(context)

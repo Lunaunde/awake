@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Widget ListView row covering 4 period(s) (200dp).
      Course cells are merged into whole blocks by the factory (border/fill drawable pairs
-     widget_cell_b_full/top/mid/bot + widget_cell_f_*), but the LEFT time column always
-     shows one label group per period (4 groups x 50dp), aligned with the period slices.
-     Label ids: widget_rl_0..widget_rl_{0..3} (period number) / widget_rlt_0.. (start\end times). -->
+     widget_cell_b_full/top/mid/bot + widget_cell_f_*); course text has NO ellipsis and a
+     generous maxLines budget (20 lines) so the full name/room/parity tag stays visible.
+     The left time column shows one label group per period, aligned with the period slices.
+     Label ids: widget_rl_0.. / widget_rlt_0.. (colors are set by code per dark mode). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="200dp"
@@ -37,36 +38,36 @@
     <FrameLayout android:id="@+id/widget_cell_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_1" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_1" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_2" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_2" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_3" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_3" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_4" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_4" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_4" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_4" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_5" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_5" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_5" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_5" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_6" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_6" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_6" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_6" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
     <FrameLayout android:id="@+id/widget_cell_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
         <ImageView android:id="@+id/widget_cell_border_7" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
         <ImageView android:id="@+id/widget_cell_bg_7" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
-        <TextView android:id="@+id/widget_cell_tx_7" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+        <TextView android:id="@+id/widget_cell_tx_7" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="20" android:lineSpacingExtra="-2dp" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
     </FrameLayout>
 </LinearLayout>

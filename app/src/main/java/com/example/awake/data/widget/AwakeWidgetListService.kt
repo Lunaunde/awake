@@ -196,9 +196,12 @@ class AwakeWidgetListService : RemoteViewsService() {
             val layout = rowLayouts[(row.span - 1).coerceIn(rowLayouts.indices)]
             val views = RemoteViews(context.packageName, layout)
             // 时间列逐节渲染：labels 与行内节次一一对应（布局里的 widget_rl_0..N / widget_rlt_0..N）。
+            // 标签颜色同样按深浅显式设置（XML 只在 inflate 时解析一次，切主题后不跟随）。
             row.labels.forEachIndexed { index, (number, times) ->
                 views.setTextViewText(labelNumIds[index], number)
                 views.setTextViewText(labelTimeIds[index], times)
+                views.setTextColor(labelNumIds[index], WidgetPalette.textPrimary(dark))
+                views.setTextColor(labelTimeIds[index], WidgetPalette.textSecondary(dark))
             }
             (1..7).forEach { day ->
                 val borderId = borderIds[day - 1]
