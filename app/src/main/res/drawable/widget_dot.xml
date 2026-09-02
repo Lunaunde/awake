@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表头“今天”圆点徽标：白色圆形基底，运行时 setColorFilter 染成主题主色（对应 App 内“今”徽标）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FFFFFF" />
+</shape>

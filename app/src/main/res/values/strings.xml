@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">Awake 课表</string>
-    <string name="widget_description">今日课表</string>
+    <string name="widget_description">周课表：切换周次、上下浏览节次、可选择课表</string>
+    <string name="widget_name">Awake 周课表</string>
+    <string name="widget_config_title">选择课表</string>
 </resources>

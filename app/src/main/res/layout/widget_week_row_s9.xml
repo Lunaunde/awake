@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget ListView row covering 9 period(s) (450dp).
+     Course cells are merged into whole blocks by the factory (border/fill drawable pairs
+     widget_cell_b_full/top/mid/bot + widget_cell_f_*), but the LEFT time column always
+     shows one label group per period (9 groups x 50dp), aligned with the period slices.
+     Label ids: widget_rl_0..widget_rl_{0..8} (period number) / widget_rlt_0.. (start\end times). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="450dp"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:id="@+id/widget_rl_col"
+        android:layout_width="32dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingLeft="2dp">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_7" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_7" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="vertical" android:paddingTop="5dp">
+            <TextView android:id="@+id/widget_rl_8" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:fontFamily="sans-serif" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_rlt_8" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:lineSpacingExtra="-2dp" android:textColor="@color/widget_text_secondary" android:textSize="7sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout android:id="@+id/widget_cell_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_1" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_2" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_3" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_4" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_4" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_4" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_5" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_5" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_5" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_6" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_6" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_6" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+    <FrameLayout android:id="@+id/widget_cell_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginLeft="1.5dp" android:layout_marginRight="1.5dp">
+        <ImageView android:id="@+id/widget_cell_border_7" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <ImageView android:id="@+id/widget_cell_bg_7" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" />
+        <TextView android:id="@+id/widget_cell_tx_7" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:fontFamily="sans-serif" android:maxLines="6" android:lineSpacingExtra="-2dp" android:ellipsize="end" android:paddingLeft="3dp" android:paddingRight="3dp" android:textColor="@color/widget_text_primary" android:textSize="9sp" android:textStyle="bold" />
+    </FrameLayout>
+</LinearLayout>

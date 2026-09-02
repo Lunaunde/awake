@@ -1,7 +1,119 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="1dp"
-    android:height="1dp"
-    android:viewportWidth="1"
-    android:viewportHeight="1">
-    <path android:fillColor="#E8F1F3" android:pathData="M0,0h1v1h-1z" />
-</vector>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 组件选择器预览：按真实组件外观绘制的示意——浅紫卡片底、顶栏标题 + 白色 chip、
+     星期表头、两行带 accent 描边的马卡龙课程格（与 App 内卡片同风格）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 卡片底 -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="16dp" />
+            <solid android:color="#E9ECF8" />
+        </shape>
+    </item>
+
+    <!-- 顶栏标题 + 副标题 -->
+    <item android:left="14dp" android:top="16dp" android:right="216dp" android:bottom="172dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="6dp" />
+            <solid android:color="#FF1C1B1F" />
+        </shape>
+    </item>
+    <item android:left="14dp" android:top="34dp" android:right="246dp" android:bottom="159dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="#49454F" />
+        </shape>
+    </item>
+
+    <!-- 顶栏白色 chip（课表 / ‹ / ›） -->
+    <item android:left="236dp" android:top="15dp" android:right="68dp" android:bottom="169dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+    <item android:left="274dp" android:top="15dp" android:right="44dp" android:bottom="169dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+    <item android:left="304dp" android:top="15dp" android:right="14dp" android:bottom="169dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+
+    <!-- 星期表头小横条（7 列，第 4 列为主题色示意“今天”） -->
+    <item android:left="42dp" android:top="52dp" android:right="296dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+    <item android:left="84dp" android:top="52dp" android:right="254dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+    <item android:left="126dp" android:top="52dp" android:right="212dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+    <item android:left="168dp" android:top="52dp" android:right="170dp" android:bottom="143dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="2dp" />
+            <solid android:color="#6650A4" />
+        </shape>
+    </item>
+    <item android:left="210dp" android:top="52dp" android:right="128dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+    <item android:left="252dp" android:top="52dp" android:right="86dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+    <item android:left="294dp" android:top="52dp" android:right="44dp" android:bottom="143dp">
+        <shape android:shape="rectangle"><corners android:radius="2dp" /><solid android:color="#FF1C1B1F" /></shape>
+    </item>
+
+    <!-- 第 1 行课程格（浅底 + accent 描边） -->
+    <item android:left="42dp" android:top="66dp" android:right="256dp" android:bottom="90dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#FFDCE3" />
+            <stroke android:width="1dp" android:color="#E78FB3" />
+        </shape>
+    </item>
+    <item android:left="126dp" android:top="66dp" android:right="172dp" android:bottom="90dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#E3DFF7" />
+            <stroke android:width="1dp" android:color="#8C79C9" />
+        </shape>
+    </item>
+    <item android:left="252dp" android:top="66dp" android:right="46dp" android:bottom="90dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#DFEDDF" />
+            <stroke android:width="1dp" android:color="#7FB08A" />
+        </shape>
+    </item>
+
+    <!-- 第 2 行课程格 -->
+    <item android:left="84dp" android:top="98dp" android:right="214dp" android:bottom="58dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#DEE8F5" />
+            <stroke android:width="1dp" android:color="#7BA3D8" />
+        </shape>
+    </item>
+    <item android:left="168dp" android:top="98dp" android:right="130dp" android:bottom="58dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#E3DFF7" />
+            <stroke android:width="1dp" android:color="#8C79C9" />
+        </shape>
+    </item>
+    <item android:left="210dp" android:top="98dp" android:right="88dp" android:bottom="58dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="7dp" />
+            <solid android:color="#FFDCE3" />
+            <stroke android:width="1dp" android:color="#E78FB3" />
+        </shape>
+    </item>
+</layer-list>

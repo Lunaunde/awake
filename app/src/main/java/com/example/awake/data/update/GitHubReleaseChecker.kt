@@ -10,6 +10,8 @@ import org.json.JSONObject
 data class GitHubRelease(
     val versionName: String,
     val versionCode: Int,
+    /** 发布说明中约定的 APK SHA-256（小写 hex），用于下载后完整性校验。 */
+    val apkSha256: String?,
     /** 说明、示例、上传的 APK 均可引用的发布页地址。 */
     val apkUrl: String?,
     val pageUrl: String,
@@ -53,6 +55,7 @@ class GitHubReleaseChecker(
         private val METADATA_LINE = Regex("""^\s*(versionName|versionCode|apk-sha256)\s*[:：]""")
         private val VERSION_NAME_LINE = Regex("""(?m)^\s*versionName\s*[:：]\s*(\S+)""")
         private val VERSION_CODE_LINE = Regex("""(?m)^\s*versionCode\s*[:：]\s*(\d+)""")
+        private val APK_SHA256_LINE = Regex("""(?m)^\s*apk-sha256\s*[:：]\s*([0-9A-Fa-f]{32,128})""")
 
         /** 旧版本号是否小于最新版本的 versionCode（versionCode 是唯一比较依据）。 */
         fun hasUpdate(latestVersionCode: Int, currentVersionCode: Int): Boolean =
@@ -69,6 +72,10 @@ class GitHubReleaseChecker(
             val versionCode = VERSION_CODE_LINE
                 .find(body)?.groupValues?.get(1)?.toIntOrNull()
                 ?: 0
+            val apkSha256 = APK_SHA256_LINE
+                .find(body)?.groupValues?.get(1)
+                ?.lowercase()
+                ?.takeIf { it.length == 64 }
             val apkUrl = runCatching {
                 val assets = json.optJSONArray("assets") ?: return@runCatching null
                 (0 until assets.length()).mapNotNull { index ->
@@ -86,6 +93,7 @@ class GitHubReleaseChecker(
             return GitHubRelease(
                 versionName = versionName,
                 versionCode = versionCode,
+                apkSha256 = apkSha256,
                 apkUrl = apkUrl,
                 pageUrl = json.optString("html_url")
                     .ifBlank { "https://github.com/$DEFAULT_REPO/releases" },

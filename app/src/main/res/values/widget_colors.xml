@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件浅色配色：与 App 内 Material3 浅色方案同源。
+     widget_bg 对应主界面 Scaffold 底色 #E9ECF8；文字色对应 onSurface/onSurfaceVariant。 -->
+<resources>
+    <!-- 组件卡片底色（与 App 主界面浅色底一致） -->
+    <color name="widget_bg">#FFE9ECF8</color>
+    <!-- 顶栏标题 / 课程文字（onSurface） -->
+    <color name="widget_text_primary">#FF1C1B1F</color>
+    <!-- 副标题、星期表头常规态、节次时间、空态（onSurfaceVariant） -->
+    <color name="widget_text_secondary">#FF49454F</color>
+    <!-- 顶栏圆角 chip：白色卡片浮在浅紫底上，与 App 内卡片一致 -->
+    <color name="widget_chip_bg">#FFFFFFFF</color>
+    <color name="widget_chip_text">#FF1C1B1F</color>
+</resources>

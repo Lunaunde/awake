@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件卡片底：圆角 + 跟随深浅模式的底色（@color/widget_bg，values-night 提供深色变体）。
+     替代旧版 224x132 PNG 拉伸背景。Android 12+ 系统还会自动按桌面圆角裁切。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="@color/widget_bg" />
+</shape>

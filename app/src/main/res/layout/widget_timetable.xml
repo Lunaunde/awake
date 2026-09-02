@@ -1,43 +1,222 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 周课表小组件（与 App 内 Material3 观感对齐）：
+     - 圆角卡片底（@drawable/widget_bg，深浅模式自动切换，替代旧版拉伸 PNG）；
+     - 顶栏：标题/副标题 + 「课表」「‹」「›」白色圆角 chip；
+     - 星期表头：星期字 + 当天日期号，今天列用主题主色并显示圆点徽标（对应 App 内「今」徽标）；
+     - 主体：ListView 集合组件（RemoteViewsService 提供每节一行），上下滑动为系统级原生支持。
+     注意：RemoteViews 不支持 ScrollView/HorizontalScrollView，滚动必须用集合组件。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#E8F1F3">
-
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Awake 课表"
-        android:textColor="#20242B"
-        android:textSize="18sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_subtitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:textColor="#68727D"
-        android:textSize="12sp" />
+    android:layout_height="match_parent">
 
     <LinearLayout
-        android:id="@+id/widget_courses"
+        android:id="@+id/widget_card"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="10dp"
-        android:layout_weight="1"
-        android:orientation="vertical" />
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp"
+        android:background="@drawable/widget_bg">
 
-    <TextView
-        android:id="@+id/widget_empty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#68727D"
-        android:textSize="12sp" />
-</LinearLayout>
+        <!-- 顶栏：标题 + 操作 chips -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/widget_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:fontFamily="sans-serif"
+                    android:text="Awake 课表"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_subtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/widget_btn_timetable"
+                android:layout_width="wrap_content"
+                android:layout_height="24dp"
+                android:gravity="center"
+                android:paddingLeft="9dp"
+                android:paddingRight="9dp"
+                android:background="@drawable/widget_chip_bg"
+                android:text="课表"
+                android:textColor="@color/widget_chip_text"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_btn_prev"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginLeft="5dp"
+                android:gravity="center"
+                android:background="@drawable/widget_chip_bg"
+                android:fontFamily="sans-serif"
+                android:includeFontPadding="false"
+                android:text="‹"
+                android:textColor="@color/widget_chip_text"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_btn_next"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginLeft="4dp"
+                android:gravity="center"
+                android:background="@drawable/widget_chip_bg"
+                android:fontFamily="sans-serif"
+                android:includeFontPadding="false"
+                android:text="›"
+                android:textColor="@color/widget_chip_text"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 表头：节次列 + 7 个星期列（星期字 + 日期号 + 今天圆点） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="32dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="节次"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="9sp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="一" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_1" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="二" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_2" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="三" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_3" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="四" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_4" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="五" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_5" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="六" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_6" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView android:id="@+id/widget_hd_7" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false" android:gravity="center" android:text="日" android:textColor="@color/widget_text_primary" android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/widget_hdn_7" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:includeFontPadding="false" android:gravity="center" android:textColor="@color/widget_text_secondary" android:textSize="8sp" />
+                <ImageView android:id="@+id/widget_hdt_7" android:layout_width="4dp" android:layout_height="4dp" android:layout_marginTop="2dp" android:scaleType="fitXY" android:src="@drawable/widget_dot" android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 主体：每节一行的可滚动列表 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="4dp">
+
+            <ListView
+                android:id="@+id/widget_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:listSelector="@android:color/transparent"
+                android:cacheColorHint="@android:color/transparent"
+                android:overScrollMode="never"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/widget_empty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="本周暂无课程"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

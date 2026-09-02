@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 课程格·顶部块·描边层：上圆角（合并块的起始段），顶部 2dp 间隔，底部与后续行无缝拼接。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="2dp">
+        <shape android:shape="rectangle">
+            <corners android:topLeftRadius="8dp" android:topRightRadius="8dp"
+                android:bottomLeftRadius="0dp" android:bottomRightRadius="0dp" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

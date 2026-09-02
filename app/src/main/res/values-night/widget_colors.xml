@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件深色配色：与 App 内 Material3 深色方案同源（background #1C1B1F、onSurface #E6E1E5）。 -->
+<resources>
+    <color name="widget_bg">#FF1C1B1F</color>
+    <color name="widget_text_primary">#FFE6E1E5</color>
+    <color name="widget_text_secondary">#FFCAC4D0</color>
+    <color name="widget_chip_bg">#FF2B2930</color>
+    <color name="widget_chip_text">#FFE6E1E5</color>
+</resources>

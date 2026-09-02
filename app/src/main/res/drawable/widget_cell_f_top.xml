@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 课程格·顶部块·填充层。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="3dp" android:left="1dp" android:right="1dp">
+        <shape android:shape="rectangle">
+            <corners android:topLeftRadius="7dp" android:topRightRadius="7dp"
+                android:bottomLeftRadius="0dp" android:bottomRightRadius="0dp" />
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

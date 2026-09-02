@@ -42,6 +42,7 @@ class GitHubReleaseCheckerTest {
 
         assertEquals("2.1.0", release.versionName)
         assertEquals(210, release.versionCode)
+        assertEquals("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", release.apkSha256)
         assertEquals("https://github.com/Lunaunde/awake/releases/download/v2.1.0/awake-2.1.0.apk", release.apkUrl)
         assertEquals("https://github.com/Lunaunde/awake/releases/tag/v2.1.0", release.pageUrl)
         assertEquals("2026-09-01T10:00:00Z", release.publishedAt)

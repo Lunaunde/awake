@@ -43,6 +43,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +70,7 @@ import com.example.awake.data.repository.ReminderCoordinator
 import com.example.awake.data.repository.ReminderSettingsStore
 import com.example.awake.data.repository.TimetableSelectionStore
 import com.example.awake.data.repository.TimetableDisplaySettingsStore
+import com.example.awake.data.update.ApkUpdateSupport
 import com.example.awake.data.update.GitHubRelease
 import com.example.awake.data.update.GitHubReleaseChecker
 import com.example.awake.ui.theme.ThemeMode
@@ -111,6 +113,9 @@ fun SettingsScreen(
     var updateStatus by remember { mutableStateOf<String?>(null) }
     var latestRelease by remember { mutableStateOf<GitHubRelease?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    // 应用内下载并安装：进度 0..1，完成后自动调用系统安装器。
+    var updateDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
     val updateChecker = remember { GitHubReleaseChecker() }
     LaunchedEffect(Unit) {
         val packageInfo = runCatching {
@@ -209,6 +214,48 @@ fun SettingsScreen(
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(Intent.createChooser(intent, "打开链接")) }
             .onFailure { updateStatus = "无法打开浏览器：${it.message ?: "未知错误"}" }
+    }
+
+    /** 应用内下载新版 APK（带进度与 SHA-256 校验），完成后自动启动系统安装器。 */
+    fun startDownloadAndInstall(release: GitHubRelease) {
+        val url = release.apkUrl
+        if (url == null) {
+            openInBrowser(release.pageUrl)
+            return
+        }
+        if (updateDownloading) return
+        scope.launch {
+            updateDownloading = true
+            downloadProgress = 0f
+            showUpdateDialog = false
+            updateStatus = "正在下载 ${release.versionName} …"
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    ApkUpdateSupport.downloadApk(
+                        context = context,
+                        url = url,
+                        expectedSha256 = release.apkSha256
+                    ) { done, total ->
+                        if (total > 0) {
+                            downloadProgress = (done.toFloat() / total).coerceIn(0f, 1f)
+                        }
+                    }
+                }
+            }.onSuccess { file ->
+                downloadProgress = 1f
+                updateStatus = "下载完成，正在启动系统安装…"
+                runCatching { ApkUpdateSupport.installApk(context, file) }
+                    .onSuccess {
+                        updateStatus = "已启动系统安装：请在系统弹窗中确认"
+                    }
+                    .onFailure { error ->
+                        updateStatus = "启动安装失败：${error.message ?: "未找到系统安装器"}。可改用浏览器下载"
+                    }
+            }.onFailure { error ->
+                updateStatus = "下载失败：${error.message ?: "网络异常"}。可改用浏览器下载"
+            }
+            updateDownloading = false
+        }
     }
 
     LaunchedEffect(section) {
@@ -499,10 +546,25 @@ fun SettingsScreen(
                             )
                             Button(
                                 onClick = ::checkUpdate,
-                                enabled = !updateChecking,
+                                enabled = !updateChecking && !updateDownloading,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(if (updateChecking) "正在检查…" else "检查更新")
+                            }
+                            if (updateDownloading) {
+                                LinearProgressIndicator(
+                                    progress = { downloadProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    if (downloadProgress < 1f) {
+                                        "正在下载 ${(downloadProgress * 100).toInt()}%…"
+                                    } else {
+                                        "正在校验文件完整性…"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -510,6 +572,7 @@ fun SettingsScreen(
                         if (GitHubReleaseChecker.hasUpdate(release.versionCode, currentVersionCode) && !showUpdateDialog) {
                             OutlinedButton(
                                 onClick = { showUpdateDialog = true },
+                                enabled = !updateDownloading,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("发现新版本 ${release.versionName} · 查看更新内容")
@@ -566,16 +629,20 @@ fun SettingsScreen(
                         release.notes,
                         style = MaterialTheme.typography.bodySmall
                     )
+                    TextButton(
+                        onClick = {
+                            showUpdateDialog = false
+                            openInBrowser(release.apkUrl ?: release.pageUrl)
+                        }
+                    ) { Text("改用浏览器下载") }
                 }
             },
             dismissButton = { TextButton(onClick = { showUpdateDialog = false }) { Text("稍后") } },
             confirmButton = {
                 Button(
-                    onClick = {
-                        showUpdateDialog = false
-                        openInBrowser(release.apkUrl ?: release.pageUrl)
-                    }
-                ) { Text("前往下载") }
+                    onClick = { startDownloadAndInstall(release) },
+                    enabled = !updateDownloading
+                ) { Text(if (updateDownloading) "正在下载…" else "下载并安装") }
             }
         )
     }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 更新下载目录：App 私有外部存储区（无需存储权限，卸载时一并清除）。 -->
+<paths>
+    <external-files-path name="updates" path="updates/" />
+</paths>
