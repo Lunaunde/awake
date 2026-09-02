@@ -76,13 +76,24 @@ class AndroidReminderScheduler(context: Context) : ReminderScheduler {
 
     private fun AlarmManager.setWakeup(triggerAt: Long, operation: PendingIntent) {
         when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
-            else -> set(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                // setAndAllowWhileIdle 属于精确闹钟：Android 12+/13+ 默认未授予
+                // SCHEDULE_EXACT_ALARM 时会抛 SecurityException，导致整个提醒调度失败。
+                // 未授权时自动降级为宽松窗口闹钟（仍可唤醒、误差在几分钟内），
+                // 保证提醒可用；用户可在系统设置中授予精确闹钟以获得准时触发。
+                try {
+                    setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+                } catch (securityError: SecurityException) {
+                    setWindow(AlarmManager.RTC_WAKEUP, triggerAt, EXACT_ALARM_FALLBACK_WINDOW_MS, operation)
+                }
+            }
+            else -> setWindow(AlarmManager.RTC_WAKEUP, triggerAt, EXACT_ALARM_FALLBACK_WINDOW_MS, operation)
         }
     }
 
     private companion object {
         const val PREFS_NAME = "awake_reminder_alarms"
         const val KEY_ALARMS = "scheduled_alarm_keys"
+        const val EXACT_ALARM_FALLBACK_WINDOW_MS = 10 * 60 * 1000L
     }
 }

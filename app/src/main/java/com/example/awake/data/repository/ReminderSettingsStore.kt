@@ -30,7 +30,7 @@ class ReminderSettingsStore(context: Context) {
     }
 
     companion object {
-        val ALLOWED_MINUTES = setOf(5, 10, 15, 30)
+        val ALLOWED_MINUTES = setOf(5, 10, 15)
         private const val KEY_ENABLED = "enabled"
         private const val KEY_MINUTES = "minutes_before"
     }
